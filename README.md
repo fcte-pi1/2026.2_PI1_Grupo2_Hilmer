@@ -16,3 +16,5 @@ Lembrem sempre de evitar enviar arquivos muito grandes (>5MB). No caso de vídeo
 1. Crie o repositório do projeto utilizando a nomenclatura padrão no formato: `<ano>.<semestre>_PI1_Grupo<n>_<professor>`. Como um exemplo, um nome formado corretamente seria `2026.2_PI1_Grupo1_Diogo`. Para tanto, faça o fork do repositório template da disciplina: [repositório template](https://github.com/fcte-pi1/template/tree/main)
 
 2. Crie o projeto da equipe no Github-Projects a partir do template: [projeto template](https://github.com/orgs/fcte-pi1/projects/6). O do projeto deve utilizar a mesma nomenclaturado repositório.
+
+3. testetstststs
