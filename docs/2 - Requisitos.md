@@ -1,43 +1,45 @@
 # Requisitos
-**'Requisitos** definem o que um sistema deve fazer e sob quais restrições. 
-
-Requisitos relacionados com a primeira parte dessa definição — "o que um sistema deve fazer", ou seja, suas funcionalidades — são chamados de **Requisitos Funcionais**.
-
-Já os requisitos relacionados com a segunda parte — "sob que restrições" — são chamados de **Requisitos Não-Funcionais'**. [Ref: Requisitos](https://engsoftmoderna.info/cap3.html)
-
->- Descrever os requisitos funcionais (RF) em alto nível (Épico);
->- Descrever os requisitos não-funcionais (RNF) de forma objetiva; Mais facilmente, mais rapidamente, mais responsivo, de fácil uso, são descrições subjetivas não-válidas. Um exemplo de requisito não-funcional de desempenho: "a página deve carregar em até 5s quando em conexão 4G".
->- Ao descrever os requisitos (RF e RNF), usar a classificação MoSCoW (*Must have*, *Should have* e *Could have*), para auxiliar a priorização.
-
-
-
 
 ## Requisitos Funcionais (RF)
 
 | **ID** | **Nome do Requisito** | **Descrição** | **Prioridade** | **Responsáveis** | **Link Github Projects** |
 |:------:|------------------------|---------------|:--------------:|------------------|--------------------------|
-| 1 | | | |                  |                          |
-| 2 | | | |                  |                          |
-| 3 | | | |                  |                          |
-| 4 | | | |                  |                          |
-| 5 | | | |                  |                          |
-| 6 | | | |                  |                          |
-| 7 | | | |                  |                          |
-| 8 | | | |                  |                          |
-| 9 | | | |                  |                          |
-| 10 | | | |                  |                          |
+| 1 | Acomodação e Fixação do Hardware | O chassi deve permitir a acomodação dos subsistemas necessários ao funcionamento do Micromouse sem comprometer sua operação. | Must have | Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/38 |
+| 2 | Objetivo da Missão | O Micromouse deve iniciar o desafio em um beco sem saída e alcançar autonomamente o canto diametralmente oposto do labirinto. | Must have | João Felipe Veloso Rosa; Lorena Rege de Sousa Alves | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/51 |
+| 3 | Monitoramento de Energia | O sistema deve aferir os parâmetros necessários ao monitoramento do estado e do consumo energético do Micromouse. | Must have | Vinicius De Jesus Bessa Fernandes; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/52 |
+| 4 | Sistema de Recarga | O sistema deve apresentar uma interface que permita a recarga externa da bateria por meio de uma fonte compatível. | Should have | Vinicius De Jesus Bessa Fernandes | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/53 |
+| 5 | Detecção de Paredes | O Micromouse deve detectar as paredes do labirinto necessárias à navegação autônoma. | Must have | Laura de Carvalho Feitosa; João Pedro de Sousa Silva; Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/54 |
+| 6 | Localização e Orientação | O Micromouse deve monitorar sua localização e orientação durante a navegação pelo labirinto. | Must have | Laura de Carvalho Feitosa; João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/57 |
+| 7 | Inicialização Física | O Micromouse deve possuir meios de energização, desenergização e início da corrida acessíveis com o sistema montado. | Must have | Laura de Carvalho Feitosa; Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/58 |
+| 8 | Controle Cinemático de Movimento | O Micromouse deve controlar seu deslocamento de forma a manter a trajetória planejada e realizar as correções necessárias durante a navegação. | Must have | João Pedro de Sousa Silva; Laura de Carvalho Feitosa; Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/59 |
+| 9 | Mapeamento e Navegação Autônoma | O Micromouse deve mapear o labirinto e utilizar as informações obtidas para navegar autonomamente até o objetivo, sem intervenção humana. | Must have | João Pedro de Sousa Silva; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/60 |
+| 10 | Detecção do Objetivo | O Micromouse deve identificar autonomamente quando alcançar a célula objetivo do labirinto. | Must have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/61 |
+| 11 | Transmissão de Telemetria | O Micromouse deve transmitir ao sistema web os dados de telemetria necessários ao acompanhamento da corrida. | Must have | Laura de Carvalho Feitosa; Vinicius De Jesus Bessa Fernandes; João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/62 |
+| 12 | Calibração Automática de Sensores | O Micromouse deve realizar a calibração automática dos sensores antes do início da prova para reduzir a influência das variações do ambiente nas leituras. | Should have | João Pedro de Sousa Silva; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/63 |
+| 13 | Dashboard Web Dinâmico | O sistema web deve exibir em tempo real o tipo do labirinto, o trajeto percorrido, o consumo de bateria, a velocidade média, o tempo de conclusão e a indicação de desafio cumprido (S/N). | Must have | João Pedro de Sousa Silva; Vinicius De Jesus Bessa Fernandes | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/64 |
+| 14 | Persistência e Histórico de Corridas | O sistema web deve armazenar os resultados das corridas, permitindo a consulta isolada por labirinto ou a visualização do histórico geral. | Must have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/65 |
+| 15 | Destaque do Melhor Resultado | O sistema web deve destacar o melhor tempo registrado para cada labirinto, permitindo sua identificação no histórico de resultados. | Should have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/66 |
+
 
 ## Requisitos Não-Funcionais (RNF)
 
 | **ID** | **Nome do Requisito** | **Descrição** | **Prioridade** | **Responsáveis** | **Link Github Projects** |
 |:------:|------------------------|---------------|:--------------:|------------------|--------------------------|
-| 1 | | | |                  |                          |
-| 2 | | | |                  |                          |
-| 3 | | | |                  |                          |
-| 4 | | | |                  |                          |
-| 5 | | | |                  |                          |
-| 6 | | | |                  |                          |
-| 7 | | | |                  |                          |
-| 8 | | | |                  |                          |
-| 9 | | | |                  |                          |
-| 10 | | | |                  |                          |
+| 1 | Restrição de Locomoção | O deslocamento do Micromouse deve ser exclusivamente terrestre, sendo proibidos mecanismos de voo, salto, escalada ou propulsão por combustão ou foguetes. | Must have | Gabrielly Carvalho de Freitas; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/31 |
+| 2 | Restrições Dimensionais Físicas | O Micromouse não pode exceder 16,5 cm de comprimento ou largura em nenhuma configuração estática. Não há restrição de altura. | Must have | Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/32 |
+| 3 | Compatibilidade com o Labirinto | O Micromouse deve ser compatível com células de 18 cm × 18 cm, paredes de 5 cm de altura, faces brancas com topo vermelho e piso preto. | Must have | João Felipe Veloso Rosa; Lorena Rege de Sousa Alves | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/33 |
+| 4 | Preservação do Labirinto | O Micromouse não deve causar danos, arranhões ou manchas às paredes ou ao piso do labirinto durante sua operação. | Must have | Gabrielly Carvalho de Freitas; João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/34 |
+| 5 | Acessibilidade à Bateria e à Eletrônica | A bateria e os componentes sujeitos a programação, operação, limpeza ou manutenção recorrente devem ser acessíveis sem exigir a desmontagem completa do Micromouse. | Must have | Gabrielly Carvalho de Freitas; Laura de Carvalho Feitosa; Vinicius De Jesus Bessa Fernandes | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/35 |
+| 6 | Fixação e Estabilidade Mecânica | Os subsistemas e componentes devem permanecer mecanicamente fixados durante as condições previstas de movimentação, aceleração, frenagem e mudança de direção. | Must have | Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/36 |
+| 7 | Robustez das Conexões de Alimentação | As conexões de alimentação elétrica devem permanecer contínuas durante as condições previstas de movimentação, vibração e ciclos de recarga. | Must have | Vinicius De Jesus Bessa Fernandes; Laura de Carvalho Feitosa; Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/37 |
+| 8 | Capacidade Elétrica Simultânea | O sistema de alimentação deve fornecer tensão e corrente compatíveis com a operação simultânea do microcontrolador, sensores, motores e demais subsistemas elétricos e eletrônicos. | Must have | Vinicius De Jesus Bessa Fernandes; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/39 |
+| 9 | Autonomia Operacional | O Micromouse deve possuir autonomia energética mínima de 30 minutos de operação, permitindo a realização de testes contínuos durante o período de aula. | Must have | Vinicius De Jesus Bessa Fernandes | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/40 |
+| 10 | Qualidade e Proteção Elétrica | O sistema elétrico deve possuir proteção contra curto-circuito e condições elétricas anormais capazes de comprometer seus subsistemas. | Must have | Vinicius De Jesus Bessa Fernandes; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/41 |
+| 11 | Desempenho do Sensoriamento | O sistema de sensoriamento deve garantir cobertura angular de pelo menos 90° com o Micromouse estático, detectar paredes a pelo menos 30 cm e operar de forma compatível com as características visuais e dimensionais do labirinto. | Must have | Laura de Carvalho Feitosa; João Pedro de Sousa Silva; Gabrielly Carvalho de Freitas | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/42 |
+| 12 | Desempenho Térmico | Os componentes elétricos e eletrônicos devem operar dentro das faixas de temperatura admissíveis especificadas por seus fabricantes durante as condições previstas de funcionamento. | Should have | Vinicius De Jesus Bessa Fernandes; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/43 |
+| 13 | Integridade de Código e Memória | O código do microcontrolador e a memória que armazena o mapa do labirinto não podem sofrer alteração manual durante a resolução do desafio. | Must have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/44 |
+| 14 | Desempenho de Missão | O Micromouse deve finalizar cada desafio em até 10 minutos. | Must have | João Felipe Veloso Rosa; Lorena Rege de Sousa Alves | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/45 |
+| 15 | Frequência de Telemetria | Os dados de telemetria enviados pelo Micromouse devem ser transmitidos e refletidos no sistema web com frequência mínima de 10 Hz (a cada 100 ms). | Should have | João Pedro de Sousa Silva; Laura de Carvalho Feitosa | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/46 |
+| 16 | Autoria da Solução | O código embarcado e a aplicação web devem ser desenvolvidos pela equipe, sendo proibida a adoção de soluções robóticas comerciais prontas. | Must have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/47 |
+| 17 | Latência da Interface Web | A interface de monitoramento deve refletir os novos dados de telemetria em no máximo 500 ms após seu recebimento. | Must have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/48 |
+| 18 | Resiliência de Conexão | Caso a conexão seja perdida, o sistema web deve retomar automaticamente a recepção e o processamento de dados, sem necessidade de reiniciar a sessão de monitoramento ativa. | Should have | João Pedro de Sousa Silva | https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/49 |
