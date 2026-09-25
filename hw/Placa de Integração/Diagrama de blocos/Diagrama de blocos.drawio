@@ -1,0 +1,666 @@
+<mxfile host="Electron" pages="6">
+  <diagram name="Visão geral" id="geral">
+    <mxGraphModel dx="883" dy="1185" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="light-dark(#FFFFFF,#121212)" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="geral-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;" value="Subsistema de Energia" vertex="1">
+          <mxGeometry height="60" width="150" x="40" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" value="Subsistema de Processamento e Comunicação&lt;br&gt;(ESP32 DevKit)" vertex="1">
+          <mxGeometry height="60" width="210" x="390" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;" value="Subsistema de Sensores de Navegação" vertex="1">
+          <mxGeometry height="60" width="150" x="210" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" value="Subsistema de Atuação e Odometria" vertex="1">
+          <mxGeometry height="60" width="150" x="210" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;" value="Subsistema de Armazenamento" vertex="1">
+          <mxGeometry height="60" width="150" x="705" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Sistema Web&lt;br&gt;(telemetria + banco de dados)" vertex="1">
+          <mxGeometry height="60" width="180" x="690" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-7" edge="1" parent="1" source="geral-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="geral-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V (pino 5V/VIN)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="115" y="150" />
+              <mxPoint x="495" y="150" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-8" edge="1" parent="1" source="geral-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="geral-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;br&gt;tensão e corrente&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-9" edge="1" parent="1" source="geral-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="geral-4" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;VCC motores (6 V)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="115" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-10" edge="1" parent="1" source="geral-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.19;entryY=1;entryDx=0;entryDy=0;" target="geral-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;br&gt;paredes e orientação&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="430" y="360" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-11" edge="1" parent="1" source="geral-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0.52;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.33;entryDx=0;entryDy=0;" target="geral-4" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;PWM + direção&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.0022" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="500" y="460" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-12" edge="1" parent="1" source="geral-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.81;entryY=1;entryDx=0;entryDy=0;" target="geral-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;fases A/B&lt;br&gt;encoders&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="560" y="485" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-13" edge="1" parent="1" source="geral-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;startArrow=classic;startFill=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="geral-5" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;SPI&lt;br&gt;mapa e telemetria&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="640" y="255" />
+              <mxPoint x="640" y="190" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-14" edge="1" parent="1" source="geral-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="geral-6" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;Wi-Fi&lt;br&gt;telemetria&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="670" y="285" />
+              <mxPoint x="670" y="350" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-15" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="O 3,3 V dos sensores, da IMU, dos encoders e da lógica do driver sai do pino 3V3 da ESP32 DevKit (regulador da própria placa). A comunicação usa o Wi-Fi integrado do ESP32." vertex="1">
+          <mxGeometry height="40" width="600" x="40" y="530" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-16" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-17" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="625" as="sourcePoint" />
+            <mxPoint x="100" y="625" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-18" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="615" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-19" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="650" as="sourcePoint" />
+            <mxPoint x="100" y="650" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-20" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-21" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="675" as="sourcePoint" />
+            <mxPoint x="100" y="675" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="geral-22" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="geral-24" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="geral-1" target="geral-5">
+          <mxGeometry as="geometry" relative="1">
+            <Array as="points">
+              <mxPoint x="77.5" y="120" />
+              <mxPoint x="780" y="120" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Energia" id="energia">
+    <mxGraphModel dx="757" dy="1016" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="energia-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#f8cecc;strokeColor=#b85450;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Energia" vertex="1">
+          <mxGeometry height="260" width="780" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-2" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Conector de recarga" vertex="1">
+          <mxGeometry height="50" width="120" x="20" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-3" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Bateria&lt;br&gt;&lt;i&gt;(a definir)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="50" width="120" x="170" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-4" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Proteção&lt;br&gt;(fusível / chave liga-desliga)" vertex="1">
+          <mxGeometry height="60" width="120" x="320" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-5" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Monitor de energia&lt;br&gt;(tensão e corrente)" vertex="1">
+          <mxGeometry height="60" width="120" x="470" y="95" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-6" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Regulador motores&lt;br&gt;6 V" vertex="1">
+          <mxGeometry height="50" width="120" x="639" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-7" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Regulador&lt;br&gt;5 V" vertex="1">
+          <mxGeometry height="50" width="120" x="639" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Atuação&lt;br&gt;(TB6612FNG, VM)" vertex="1">
+          <mxGeometry height="50" width="180" x="920" y="85" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(ESP32 DevKit, pino 5V/VIN)" vertex="1">
+          <mxGeometry height="70" width="180" x="989" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-11" edge="1" parent="1" source="energia-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-12" edge="1" parent="1" source="energia-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-13" edge="1" parent="1" source="energia-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-14" edge="1" parent="1" source="energia-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-15" edge="1" parent="1" source="energia-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-7" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-16" edge="1" parent="1" source="energia-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-8" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;6 V&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-17" edge="1" parent="1" source="energia-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="energia-9" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-18" edge="1" parent="1" source="energia-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="energia-9" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;br&gt;tensão e corrente&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="570" y="365" />
+              <mxPoint x="1079" y="365" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="energia-19" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-20" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="475" as="sourcePoint" />
+            <mxPoint x="100" y="475" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="energia-21" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="465" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-22" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="500" as="sourcePoint" />
+            <mxPoint x="100" y="500" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="energia-23" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-24" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="525" as="sourcePoint" />
+            <mxPoint x="100" y="525" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="energia-25" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="515" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="550" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-27" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Armazenamento&lt;br&gt;(HW-125)" vertex="1">
+          <mxGeometry height="50" width="170" x="1190" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-28" edge="1" parent="1" source="energia-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="energia-27" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="850" y="235" />
+              <mxPoint x="850" y="170" />
+              <mxPoint x="1275" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="energia-29" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="O 3,3 V da lógica (sensores, IMU, encoders, lógica do TB6612FNG) é gerado pelo regulador da própria DevKit e sai pelo pino 3V3 (ver página Processamento e Comunicação)." vertex="1">
+          <mxGeometry height="30" width="760" x="40" y="390" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Processamento e Comunicação" id="proc">
+    <mxGraphModel dx="442" dy="593" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="proc-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#dae8fc;strokeColor=#6c8ebf;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Processamento e Comunicação" vertex="1">
+          <mxGeometry height="360" width="410" x="30" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-2" parent="proc-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;ESP32 DevKit&lt;/b&gt;&lt;br&gt;(CH9102X)&lt;br&gt;&lt;br&gt;Wi-Fi integrado&lt;br&gt;&lt;br&gt;regulador 3,3 V&lt;br&gt;da placa" vertex="1">
+          <mxGeometry height="280" width="150" x="230" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-3" parent="proc-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="Botão início/reset" vertex="1">
+          <mxGeometry height="40" width="130" x="10" y="73.5" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-4" parent="proc-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="USB programação" vertex="1">
+          <mxGeometry height="40" width="130" x="10" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-5" parent="proc-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="LEDs de estado" vertex="1">
+          <mxGeometry height="40" width="130" x="10" y="286" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Energia" vertex="1">
+          <mxGeometry height="70" width="170" x="620" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Sensores de navegação" vertex="1">
+          <mxGeometry height="50" width="170" x="620" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Atuação e odometria" vertex="1">
+          <mxGeometry height="70" width="170" x="620" y="234" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Armazenamento" vertex="1">
+          <mxGeometry height="50" width="170" x="620" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Sistema Web&lt;br&gt;(telemetria + banco de dados)" vertex="1">
+          <mxGeometry height="60" width="170" x="620" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-11" edge="1" parent="1" source="proc-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;entryX=0;entryY=0.12;entryDx=0;entryDy=0;" target="proc-2" value="GPIO">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-12" edge="1" parent="1" source="proc-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="proc-2" value="gravação / &lt;br&gt;serial">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-13" edge="1" parent="1" source="proc-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0;exitY=0.88;exitDx=0;exitDy=0;" target="proc-5" value="GPIO">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-14" edge="1" parent="1" source="proc-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0;exitY=0.3;exitDx=0;exitDy=0;entryX=1;entryY=0.05;entryDx=0;entryDy=0;" target="proc-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V (5V/VIN)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="490.03" y="81.03" />
+              <mxPoint x="490.03" y="114" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-15" edge="1" parent="1" source="proc-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.2;entryDx=0;entryDy=0;" target="proc-2" value="I2C tensão e corrente">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530.03" y="112.51" />
+              <mxPoint x="530.03" y="156" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-16" edge="1" parent="1" source="proc-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.38;entryDx=0;entryDy=0;" target="proc-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530.03" y="185.03" />
+              <mxPoint x="530.03" y="206.4" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-17" edge="1" parent="1" source="proc-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.55;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="proc-8" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;PWM + direção&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-18" edge="1" parent="1" source="proc-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;entryX=1;entryY=0.68;entryDx=0;entryDy=0;exitX=-0.006;exitY=0.804;exitDx=0;exitDy=0;exitPerimeter=0;" target="proc-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;GPIO (fases A/B)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="620.01" y="290.3" />
+            </Array>
+            <mxPoint x="610" y="290" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-19" edge="1" parent="1" source="proc-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;startArrow=classic;startFill=1;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="proc-9" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;SPI&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="530" y="338" />
+              <mxPoint x="530" y="355" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-20" edge="1" parent="1" source="proc-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.998;exitY=0.929;exitDx=0;exitDy=0;exitPerimeter=0;" target="proc-10" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;Wi-Fi&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="500.03" y="360.11" />
+              <mxPoint x="500.03" y="440" />
+            </Array>
+            <mxPoint x="410" y="360" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-21" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="560.0" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-22" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="595.0" as="sourcePoint" />
+            <mxPoint x="100" y="595.0" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-23" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="585.0" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-24" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="620.0" as="sourcePoint" />
+            <mxPoint x="100" y="620.0" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-25" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="610.0" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-26" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="645.0" as="sourcePoint" />
+            <mxPoint x="100" y="645.0" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="proc-27" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="635.0" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-28" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="670.0" as="geometry" />
+        </mxCell>
+        <mxCell id="proc-29" value="Carga 3,3 V&lt;br&gt;(4× VL53L0X, IMU, encoders,&lt;br&gt;lógica do TB6612FNG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry as="geometry" x="235" y="450" width="200" height="60" />
+        </mxCell>
+        <mxCell id="proc-30" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;3,3 V (pino 3V3)&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="proc-2" target="proc-29">
+          <mxGeometry as="geometry" relative="1" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Sensores de Navegação" id="sens">
+    <mxGraphModel dx="366" dy="490" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="sens-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#d5e8d4;strokeColor=#82b366;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Sensores de Navegação" vertex="1">
+          <mxGeometry height="250" width="300" x="260" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-2" parent="sens-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;4 × VL53L0X&lt;/b&gt;&lt;br&gt;(ToF, paredes)" vertex="1">
+          <mxGeometry height="60" width="200" x="50" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-3" parent="sens-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;IMU BMI088 ou MPU-9250&lt;/b&gt;&lt;br&gt;(acelerômetro + giroscópio)" vertex="1">
+          <mxGeometry height="60" width="200" x="50" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(3,3 V, pino 3V3 da DevKit)" vertex="1">
+          <mxGeometry height="60" width="150" x="40" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(ESP32)" vertex="1">
+          <mxGeometry height="110" width="160" x="700" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-6" edge="1" parent="1" source="sens-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="sens-2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-7" edge="1" parent="1" source="sens-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.8;exitDx=0;exitDy=0;" target="sens-3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-8" edge="1" parent="1" source="sens-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.12;entryDx=0;entryDy=0;" target="sens-5" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="670.03" y="108" />
+              <mxPoint x="670.03" y="123.2" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sens-9" edge="1" parent="1" source="sens-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0.003;exitY=0.544;exitDx=0;exitDy=0;entryX=1;entryY=0.8;entryDx=0;entryDy=0;exitPerimeter=0;" target="sens-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;GPIO (4× XSHUT)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="630.03" y="169.81" />
+              <mxPoint x="630.03" y="138.01" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sens-10" edge="1" parent="1" source="sens-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" target="sens-5" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;I2C&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-11" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="Os 4 VL53L0X saem de fábrica com o mesmo endereço I2C. Na inicialização o ESP32 usa os pinos XSHUT para ligar um sensor por vez e atribuir endereços diferentes." vertex="1">
+          <mxGeometry height="40" width="460" x="260" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-12" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="380" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-13" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="415" as="sourcePoint" />
+            <mxPoint x="100" y="415" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sens-14" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="405" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-15" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="440" as="sourcePoint" />
+            <mxPoint x="100" y="440" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sens-16" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-17" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="465" as="sourcePoint" />
+            <mxPoint x="100" y="465" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="sens-18" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="sens-19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="490" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Atuação e Odometria" id="atu">
+    <mxGraphModel dx="883" dy="1185" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="atu-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#ffe6cc;strokeColor=#d79b00;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Atuação e Odometria" vertex="1">
+          <mxGeometry height="300" width="580" x="260" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-2" parent="atu-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;TB6612FNG&lt;/b&gt;&lt;br&gt;Ponte H dupla" vertex="1">
+          <mxGeometry height="80" width="150" x="40" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-3" parent="atu-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;Motor esquerdo&lt;/b&gt;&lt;br&gt;12GA-N20 6 V 750 RPM&lt;br&gt;+ encoder" vertex="1">
+          <mxGeometry height="70" width="170" x="380" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-4" parent="atu-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" value="&lt;b&gt;Motor direito&lt;/b&gt;&lt;br&gt;12GA-N20 6 V 750 RPM&lt;br&gt;+ encoder" vertex="1">
+          <mxGeometry height="70" width="170" x="380" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-14" edge="1" parent="1" source="atu-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=0.3;exitY=0;exitDx=0;exitDy=0;jumpStyle=arc;jumpSize=8;" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;PWMA/PWMB (PWM)&lt;br&gt;AIN/BIN, STBY (GPIO)&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.2195" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="620" y="300" />
+              <mxPoint x="400" y="300" />
+            </Array>
+            <mxPoint x="400" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Energia&lt;br&gt;(VCC motores, 6 V)" vertex="1">
+          <mxGeometry height="60" width="150" x="40" y="148" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(3,3 V, pino 3V3 da DevKit)" vertex="1">
+          <mxGeometry height="50" width="150" x="40" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(ESP32)" vertex="1">
+          <mxGeometry height="60" width="200" x="560" y="420" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-8" edge="1" parent="1" source="atu-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" target="atu-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;VM&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-9" edge="1" parent="1" source="atu-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" value="VCC lógica">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="339.79" y="445" />
+            </Array>
+            <mxPoint x="339.75" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-10" edge="1" parent="1" source="atu-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="atu-3" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;potência&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="545" y="190" />
+              <mxPoint x="545" y="100" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-11" edge="1" parent="1" source="atu-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" target="atu-4" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;potência&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.2922" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-13" edge="1" parent="1" source="atu-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8;" target="atu-4" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="115" y="380" />
+              <mxPoint x="600" y="380" />
+              <mxPoint x="600" y="275" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-15" edge="1" parent="1" source="atu-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8;" target="atu-7" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;GPIO fases A/B&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="932.21" y="115" />
+              <mxPoint x="932.21" y="465" />
+            </Array>
+            <mxPoint x="812.2" y="120" as="sourcePoint" />
+            <mxPoint x="760" y="467.17999999999995" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-16" edge="1" parent="1" source="atu-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8;" target="atu-7" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;GPIO fases A/B&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="870.02" y="275" />
+              <mxPoint x="870.02" y="435" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-17" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-18" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="555" as="sourcePoint" />
+            <mxPoint x="100" y="555" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-19" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-20" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="580" as="sourcePoint" />
+            <mxPoint x="100" y="580" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-21" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="570" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-22" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="605" as="sourcePoint" />
+            <mxPoint x="100" y="605" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="atu-23" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="595" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-24" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="atu-12" edge="1" parent="1" source="atu-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;jumpStyle=arc;jumpSize=8;" target="atu-3" value="&lt;font style=&quot;font-size: 12px; background-color: light-dark(rgb(255, 255, 255), rgb(18, 18, 18));&quot;&gt;alimentação&lt;br&gt;dos encoders&lt;/font&gt;">
+          <mxGeometry relative="1" x="-0.0241" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="115" y="380" />
+              <mxPoint x="580" y="380" />
+              <mxPoint x="580" y="132.52" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="Armazenamento" id="arm">
+    <mxGraphModel dx="624" dy="836" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="arm-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#e1d5e7;strokeColor=#9673a6;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Armazenamento" vertex="1">
+          <mxGeometry height="170" width="260" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-2" parent="arm-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" value="&lt;b&gt;Módulo microSD&lt;/b&gt;&lt;br&gt;HW-125" vertex="1">
+          <mxGeometry height="70" width="160" x="50" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Energia&lt;br&gt;(regulador 5 V)" vertex="1">
+          <mxGeometry height="50" width="170" x="499" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Processamento&lt;br&gt;(ESP32)" vertex="1">
+          <mxGeometry height="60" width="170" x="499" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-5" edge="1" parent="1" source="arm-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" target="arm-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;5 V&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.1081" as="geometry">
+            <mxPoint x="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="470.04" y="75" />
+              <mxPoint x="470.04" y="117.52" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arm-6" edge="1" parent="1" source="arm-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;startArrow=classic;startFill=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" target="arm-2" value="&lt;font style=&quot;font-size: 12px;&quot;&gt;SPI&lt;br&gt;mapa e telemetria&lt;/font&gt;">
+          <mxGeometry relative="1" x="0.0597" as="geometry">
+            <mxPoint x="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="470.04" y="180" />
+              <mxPoint x="470.04" y="152.52" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arm-7" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;" value="&lt;b&gt;Legenda&lt;/b&gt;" vertex="1">
+          <mxGeometry height="20" width="200" x="40" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-8" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;endArrow=block;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="315" as="sourcePoint" />
+            <mxPoint x="100" y="315" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arm-9" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Energia" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="305" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-10" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="340" as="sourcePoint" />
+            <mxPoint x="100" y="340" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arm-11" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sinal / dados (com protocolo)" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-12" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=1;endArrow=classic;endFill=1;dashed=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="40" y="365" as="sourcePoint" />
+            <mxPoint x="100" y="365" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arm-13" parent="1" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=11;verticalAlign=middle;" value="Sem fio" vertex="1">
+          <mxGeometry height="20" width="200" x="110" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="arm-14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
+          <mxGeometry height="30" width="120" x="40" y="390" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
