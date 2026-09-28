@@ -160,7 +160,7 @@
         <mxCell id="energia-6" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Fusível motores&lt;br&gt;2 A FF" vertex="1">
           <mxGeometry height="50" width="130" x="750" y="60" as="geometry" />
         </mxCell>
-        <mxCell id="energia-7" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Regulador 5 V&lt;/b&gt;&lt;br&gt;&lt;i&gt;buck (modelo a definir)&lt;/i&gt;" vertex="1">
+        <mxCell id="energia-7" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;LM2596&lt;/b&gt;&lt;br&gt;buck 5 V" vertex="1">
           <mxGeometry height="60" width="130" x="760" y="160" as="geometry" />
         </mxCell>
         <mxCell id="energia-12" edge="1" parent="energia-1" source="energia-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;startArrow=block;startFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="energia-30" value="">
