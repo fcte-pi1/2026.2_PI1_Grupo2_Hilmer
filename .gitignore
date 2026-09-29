@@ -342,3 +342,6 @@ TSWLatexianTemp*
 .DS_Store
 Thumbs.db
 
+# Draw.io
+*.bkp
+*.dtmp
