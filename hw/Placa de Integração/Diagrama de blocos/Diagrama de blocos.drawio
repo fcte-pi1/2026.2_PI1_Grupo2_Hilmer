@@ -139,20 +139,11 @@
         <mxCell id="energia-1" parent="1" style="swimlane;whiteSpace=wrap;html=1;startSize=28;fillColor=#f8cecc;strokeColor=#b85450;swimlaneFillColor=#FAFAFA;fontStyle=1;collapsible=0;" value="Subsistema de Energia" vertex="1">
           <mxGeometry height="240" width="900" x="40" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="energia-2" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Conector de recarga&lt;br&gt;&lt;i&gt;(a definir)&lt;/i&gt;" vertex="1">
-          <mxGeometry height="45" width="130" x="180" y="42" as="geometry" />
-        </mxCell>
         <mxCell id="energia-3" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;Bateria LiPo 2S&lt;/b&gt;&lt;br&gt;7,4 V 1500 mAh&lt;br&gt;(XT30 + JST-XH)" vertex="1">
           <mxGeometry height="70" width="140" x="10" y="42" as="geometry" />
         </mxCell>
-        <mxCell id="energia-30" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="BMS / módulo de carga&lt;br&gt;&lt;i&gt;(a definir)&lt;/i&gt;" vertex="1">
-          <mxGeometry height="70" width="130" x="160" y="130" as="geometry" />
-        </mxCell>
         <mxCell id="energia-4" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Chave geral&lt;br&gt;(liga-desliga)" vertex="1">
           <mxGeometry height="70" width="110" x="320" y="130" as="geometry" />
-        </mxCell>
-        <mxCell id="energia-31" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="Fusível geral&lt;br&gt;3 A FF" vertex="1">
-          <mxGeometry height="70" width="110" x="455" y="130" as="geometry" />
         </mxCell>
         <mxCell id="energia-5" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;INA219&lt;/b&gt;&lt;br&gt;shunt no positivo&lt;br&gt;(&lt;i&gt;high-side&lt;/i&gt;)&lt;br&gt;VS e I2C em 3,3 V" vertex="1">
           <mxGeometry height="70" width="130" x="590" y="130" as="geometry" />
@@ -163,13 +154,6 @@
         <mxCell id="energia-7" parent="energia-1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;LM2596&lt;/b&gt;&lt;br&gt;buck 5 V" vertex="1">
           <mxGeometry height="60" width="130" x="760" y="160" as="geometry" />
         </mxCell>
-        <mxCell id="energia-12" edge="1" parent="energia-1" source="energia-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;startArrow=block;startFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="energia-30" value="">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="80.02" y="165.02" />
-            </Array>
-          </mxGeometry>
-        </mxCell>
         <mxCell id="energia-8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Atuação e Odometria&lt;br&gt;(TB6612FNG, VM)" vertex="1">
           <mxGeometry height="50" width="200" x="1070" y="100" as="geometry" />
         </mxCell>
@@ -178,18 +162,6 @@
         </mxCell>
         <mxCell id="energia-27" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;" value="Armazenamento&lt;br&gt;(microSD HW-125)" vertex="1">
           <mxGeometry height="50" width="200" x="1071" y="270" as="geometry" />
-        </mxCell>
-        <mxCell id="energia-11" edge="1" parent="1" source="energia-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-30" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="energia-13" edge="1" parent="1" source="energia-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-4" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="energia-37" edge="1" parent="1" source="energia-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-31" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="energia-14" edge="1" parent="1" source="energia-31" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-5" value="">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="energia-15" edge="1" parent="1" source="energia-5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="energia-6" value="">
           <mxGeometry relative="1" as="geometry">
@@ -260,6 +232,12 @@
         </mxCell>
         <mxCell id="energia-26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;dashed=1;fontColor=#666666;fontSize=10;" value="Outro subsistema" vertex="1">
           <mxGeometry height="30" width="120" x="50" y="435" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-13" edge="1" parent="1" source="energia-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="energia-14" edge="1" parent="1" source="energia-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;labelBackgroundColor=#FFFFFF;fontSize=10;strokeWidth=3;strokeColor=#B85450;endArrow=block;endFill=1;" target="energia-5" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
