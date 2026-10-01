@@ -36,5 +36,5 @@
 | Capacitor eletrolítico 470 µF, 16 V | 1 | 0,60–1,20 |  |
 | Capacitor eletrolítico 1000 µF, 16 V | 1 | 0,75–1,90 |  |
 | Diodo TVS SMAJ8.5A | 1 | 1,50–4,90 |  |
-| **TOTAL PARCIAL DOS VALORES INFORMADOS** |  | **1.353,50–1.434,45** |  |
+| **TOTAL PARCIAL DOS VALORES INFORMADOS** |  | **1200,60** |  |
 
