@@ -21,20 +21,20 @@
 | Módulo de cartão SD | 1 | 20,00 cada |  |
 | Componentes extras: LED, jumpers, botão, eventuais placas, resistências etc. | 1 | 80  |  |
 | **Energia** |  |  |  |
-| Bateria LiPo 2S, 7,4 V, 1500 mAh | 1 | 140,00–180,00 |  |
-| Regulador LM2596, módulo ajustado em 5 V | 1 | 14,00–28,00 |  |
-| Conector JST-XT30 | 1 | 9,00–22,00 |  |
-| Fusível 4 A, 5 × 20 mm, tipo FF | 1 | 0,40–1,50 |  |
-| Fusível 3 A, 5 × 20 mm, tipo FF | 1 | 1,00–2,00 |  |
+| Bateria LiPo 2S, 7,4 V, 1500 mAh | 1 | 160 |  |
+| Regulador LM2596, módulo ajustado em 5 V | 1 | 21 |  |
+| Conector JST-XT30 | 1 | 15,5 |  |
+| Fusível 4 A, 5 × 20 mm, tipo FF | 1 | 1 |  |
+| Fusível 3 A, 5 × 20 mm, tipo FF | 1 | 1,5 |  |
 | Porta-fusível 5 × 20 mm para PCB | 2 | 0,90 cada | 1,80 |
-| Capacitor cerâmico 100 nF, 16 V, X7R, 0805 | 16 | 0,15–0,40 cada | 2,40–6,40 |
-| Capacitor cerâmico 22 µF, 10 V, X7R, 1206 | 1 | 1,00–2,50 |  |
-| Capacitor eletrolítico 47 µF, 16 V | 1 | 0,50–0,80 |  |
-| Capacitor eletrolítico 100 µF, 10 V | 1 | 0,40–0,60 |  |
-| Capacitor eletrolítico 100 µF, 16 V | 1 | 0,50–1,00 |  |
-| Capacitor eletrolítico 220 µF, 16 V | 1 | 0,30–0,50 |  |
-| Capacitor eletrolítico 470 µF, 16 V | 1 | 0,60–1,20 |  |
-| Capacitor eletrolítico 1000 µF, 16 V | 1 | 0,75–1,90 |  |
-| Diodo TVS SMAJ8.5A | 1 | 1,50–4,90 |  |
-| **TOTAL PARCIAL DOS VALORES INFORMADOS** |  | **1.353,50–1.434,45** |  |
+| Capacitor cerâmico 100 nF, 16 V, X7R, 0805 | 16 | 0,28 cada | 2,40–6,40 |
+| Capacitor cerâmico 22 µF, 10 V, X7R, 1206 | 1 | 1,75 |  |
+| Capacitor eletrolítico 47 µF, 16 V | 1 | 0,65 |  |
+| Capacitor eletrolítico 100 µF, 10 V | 1 | 0,5 |  |
+| Capacitor eletrolítico 100 µF, 16 V | 1 | 0,75 |  |
+| Capacitor eletrolítico 220 µF, 16 V | 1 | 0,4 |  |
+| Capacitor eletrolítico 470 µF, 16 V | 1 | 0,9 |  |
+| Capacitor eletrolítico 1000 µF, 16 V | 1 | 1,33 |  |
+| Diodo TVS SMAJ8.5A | 1 | 3,2 |  |
+| **TOTAL PARCIAL DOS VALORES INFORMADOS** |  | **1200** |  |
 
