@@ -1,0 +1,7 @@
+# Saída de compilação do PlatformIO
+.pio/
+
+# Arquivos gerados pela extensão do VS Code
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
