@@ -26,6 +26,8 @@ Pela barra inferior do PlatformIO no VS Code, ou pelo terminal dentro de `src/fi
 | Abrir o monitor serial | `pio device monitor` |
 | Rodar os testes no PC  | `pio test -e native` |
 
+Nos testes, o `-e native` é obrigatório. Sem ele, o PlatformIO usa o ambiente padrão (`esp32dev`), que ignora os testes e mostra `0 test cases`. No VS Code, rode pela barra lateral do PlatformIO: **Project Tasks → native → Advanced → Test**.
+
 ## Estrutura
 
 ```
