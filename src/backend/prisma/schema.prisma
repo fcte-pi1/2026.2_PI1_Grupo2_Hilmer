@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Labirinto {
+  id        String    @id @default(uuid())
+  dimensao  String    @unique
+  createdAt DateTime  @default(now()) @map("created_at")
+  corridas  Corrida[]
+
+  @@map("labirintos")
+}
+
+model Corrida {
+  id           String       @id @default(uuid())
+  labirintoId  String       @map("labirinto_id")
+  labirinto    Labirinto    @relation(fields: [labirintoId], references: [id])
+  status       String
+  iniciadaEm   DateTime     @default(now()) @map("iniciada_em")
+  finalizadaEm DateTime?    @map("finalizada_em")
+  telemetrias  Telemetria[]
+
+  @@map("corridas")
+}
+
+model Telemetria {
+  id        String   @id @default(uuid())
+  corridaId String   @map("corrida_id")
+  corrida   Corrida  @relation(fields: [corridaId], references: [id], onDelete: Cascade)
+  timestamp DateTime @default(now())
+  posX      Float    @map("pos_x")
+  posY      Float    @map("pos_y")
+  direcao   String
+  sensores  Json
+
+  @@map("telemetrias")
+}
