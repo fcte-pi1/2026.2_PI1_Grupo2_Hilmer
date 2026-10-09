@@ -345,3 +345,30 @@ Thumbs.db
 # Draw.io
 *.bkp
 *.dtmp
+
+
+# Dependências
+node_modules/
+
+# Variáveis de ambiente (manter só os .example)
+.env
+.env.*
+!.env.example
+
+# Builds
+dist/
+.next/
+out/
+build/
+coverage/
+
+# Python (mock)
+__pycache__/
+.venv/
+*.pyc
+
+# Sistema / editores
+!.vscode/extensions.json
+
+# Logs
+npm-debug.log*
