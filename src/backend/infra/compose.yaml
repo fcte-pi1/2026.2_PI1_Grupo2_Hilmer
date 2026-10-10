@@ -1,0 +1,13 @@
+services:
+  database:
+    container_name: "microMouse-db-dev"
+    image: "postgres:16.0-alpine3.18"
+    env_file:
+      - ../.env.development
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
