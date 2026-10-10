@@ -3,7 +3,10 @@ let count = 0;
 const spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 function checkPostgres() {
-  exec("docker exec postgres-dev pg_isready --host localhost", handleReturn);
+  exec(
+    "docker exec microMouse-db-dev pg_isready --host localhost",
+    handleReturn,
+  );
 
   function handleReturn(err, stdout) {
     const isReady = stdout && stdout.includes("accepting connections");
