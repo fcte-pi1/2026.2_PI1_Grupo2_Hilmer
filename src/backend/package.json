@@ -1,20 +1,23 @@
 {
-  "name": "backend_rato",
+  "name": "backend_microMouse",
   "version": "1.0.0",
   "description": "Backend em NestJS para telemetria em tempo real, persistência e controle do robô resolvedor de labirinto via WebSockets e PostgreSQL.",
   "main": "index.js",
   "scripts": {
-    "dev": "npm run services:up && npm run services:wait:database && npm run db:migrate && npm run db:seed && npm run db:studio",
+    "dev": "npm run dev:setup",
+    "dev:setup": "npm run services:up && npm run services:wait:database && npm run db:migrate && npm run db:seed",
     "services:up": "docker compose -f infra/compose.yaml up -d",
     "services:stop": "docker compose -f infra/compose.yaml stop",
     "services:down": "docker compose -f infra/compose.yaml down",
     "services:wait:database": "node infra/scripts/wait-for-postgres.js",
     "db:migrate": "dotenv -e .env.development -- prisma migrate dev",
     "db:seed": "dotenv -e .env.development -- prisma db seed",
-    "db:studio": "dotenv -e .env.development -- prisma studio",
+    "db:studio:dev": "dotenv -e .env.development -- prisma studio",
+    "db:studio:test": "dotenv -e .env.test -- prisma studio --port 5556",
     "ingest:dev": "ts-node src/dev-ingest.ts",
-    "test": "jest --runInBand --verbose",
-    "test:watch": "jest --watchAll --runInBand --verbose"
+    "pretest": "npm run services:up && npm run services:wait:database && dotenv -e .env.test -- node infra/scripts/create-test-db.js && dotenv -e .env.test -- prisma db push --skip-generate",
+    "test": "dotenv -e .env.test -- jest --runInBand --verbose",
+    "test:watch": "dotenv -e .env.test -- jest --watchAll --runInBand --verbose"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
