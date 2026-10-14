@@ -18,3 +18,14 @@ Evite incluir:
 
 > [!WARNING]
 > **Não acrescente arquivos referentes ao _backend_ nesta pasta.** Eles deverão ser armazenados na pasta [backend](https://github.com/fcte-pi1/template/tree/main/src/backend) deste repositório.
+
+Como rodar:
+
+### Frontend (Next.js)
+
+```bash
+cd src/frontend
+cp .env.example .env.local
+npm install
+npm run dev
+```
