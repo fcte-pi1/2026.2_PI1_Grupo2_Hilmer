@@ -1,8 +1,14 @@
-# Roda os testes e a compilação do firmware em PRs que alteram src/firmware/ ou este workflow.
+# Roda os testes e a compilação do firmware quando src/firmware/ ou este workflow mudam.
+# O push na main salva o cache que os PRs reaproveitam.
 name: CI do firmware
 
 on:
   pull_request:
+    paths:
+      - "src/firmware/**"
+      - ".github/workflows/firmware.yml"
+  push:
+    branches: [main]
     paths:
       - "src/firmware/**"
       - ".github/workflows/firmware.yml"
