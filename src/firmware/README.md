@@ -39,7 +39,7 @@ src/firmware/
 │   ├── encoders/         # encoders dos N20 (PCNT)
 │   ├── sensores/         # I2C: VL53L0X, BMI088 e INA219
 │   ├── armazenamento/    # cartão microSD (SPI)
-│   ├── navegacao/        # lógica pura: mapa do labirinto, Flood Fill
+│   ├── navegacao/        # lógica pura: mapa do labirinto, Flood Fill, PID, bateria
 │   └── tarefas/          # tarefas do FreeRTOS
 └── test/                 # testes Unity da lógica pura
 ```
