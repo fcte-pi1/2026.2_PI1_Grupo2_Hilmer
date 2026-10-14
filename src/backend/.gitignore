@@ -5,11 +5,17 @@
 /dist
 *.tsbuildinfo
 
+# prisma
+/generated/prisma
+
 # testing
 /coverage
 
-# env files
-.env*
+# env files (.env.development e .env.test são versionados: só têm credenciais locais do docker)
+.env
+.env.*
+!.env.development
+!.env.test
 
 # logs
 *.log
