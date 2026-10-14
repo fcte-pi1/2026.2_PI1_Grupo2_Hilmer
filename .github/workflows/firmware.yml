@@ -1,0 +1,43 @@
+# Roda os testes e a compilação do firmware quando src/firmware/ ou este workflow mudam.
+# O push na main salva o cache que os PRs reaproveitam.
+name: CI do firmware
+
+on:
+  pull_request:
+    paths:
+      - "src/firmware/**"
+      - ".github/workflows/firmware.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/firmware/**"
+      - ".github/workflows/firmware.yml"
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/firmware
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # A plataforma do ESP32 tem centenas de MB; o cache evita baixar a cada execução.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('src/firmware/platformio.ini') }}
+
+      - name: Instalar o PlatformIO
+        run: pip install platformio
+
+      - name: Testes no PC
+        run: pio test -e native
+
+      - name: Compilar para o ESP32
+        run: pio run -e esp32dev
