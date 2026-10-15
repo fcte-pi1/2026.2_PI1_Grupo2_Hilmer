@@ -15,8 +15,20 @@ Evite incluir:
 - Artefatos de build: diretórios como `__pycache__/`, `dist/`, `build/`, `.eggs/` devem ser gerados localmente e ignorados via `.gitignore`.
 - Dependências instaladas: pastas como `node_modules/` ou ambientes virtuais Python (`venv/`, `.env/`) não devem ser incluídos no repositório.
 - Arquivos temporários/específicos do sistema operacional: arquivos gerados automaticamente pelo sistema ou pelo gerenciador de arquivos (ex.: `*~`, `.DS_Store`, `Thumbs.db`).
+
 > [!WARNING]
 > **Não acrescente arquivos referentes ao _frontend_ nesta pasta.** Eles deverão ser armazenados na pasta [frontend](https://github.com/fcte-pi1/template/tree/main/src/frontend) deste repositório.
+
+## Como rodar o Backend (NestJS)
+
+```bash
+cd src/backend
+cp .env.example .env
+npm install
+npm run dev
+# ou para subir apenas a aplicação NestJS em modo watch:
+npm run start:dev
+```
 
 ## Ingestão de telemetria (`/ingest`)
 

@@ -14,7 +14,7 @@ import { NestFactory } from '@nestjs/core';
 process.env.TELEMETRY_DEBUG_EVENTS ??= 'true';
 
 async function main() {
-  const { TelemetryModule } = await import('./telemetry/telemetry.module');
+  const { TelemetryModule } = await import('./telemetry/telemetry.module.js');
 
   @Module({ imports: [TelemetryModule] })
   class DevModule {}

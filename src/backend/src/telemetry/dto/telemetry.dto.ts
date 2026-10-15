@@ -81,7 +81,7 @@ export class BaseMessageDto {
 
 export class TelemetryPayloadDto extends BaseMessageDto {
   @Equals('telemetry')
-  type: 'telemetry';
+  override type: 'telemetry' = 'telemetry';
 
   @ValidateNested()
   @Type(() => PositionDto)
@@ -125,7 +125,7 @@ export class TelemetryPayloadDto extends BaseMessageDto {
 
 export class EventPayloadDto extends BaseMessageDto {
   @Equals('event')
-  type: 'event';
+  override type: 'event' = 'event';
 
   @IsIn(['CALIBRATION_DONE', 'RUN_START', 'GOAL_REACHED', 'RUN_END'])
   event: RobotEventType;
