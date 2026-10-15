@@ -33,6 +33,7 @@
     "db:seed": "dotenv -e .env.development -- prisma db seed",
     "db:studio:dev": "dotenv -e .env.development -- prisma studio",
     "db:studio:test": "dotenv -e .env.test -- prisma studio --port 5556",
+    "ingest:dev": "ts-node src/dev-ingest.ts",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
@@ -48,13 +49,17 @@
   "dependencies": {
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",
+    "@nestjs/event-emitter": "^12.0.1",
     "@nestjs/platform-express": "^12.0.1",
     "@prisma/client": "^6.4.1",
     "async-retry": "^1.3.3",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "dotenv": "^16.4.7",
     "dotenv-expand": "^12.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -66,6 +71,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
+    "@types/ws": "^8.5.13",
     "concurrently": "^9.1.2",
     "dotenv-cli": "^11.0.0",
     "eslint": "^10.12.0",
