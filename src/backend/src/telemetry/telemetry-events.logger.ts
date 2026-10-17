@@ -6,7 +6,10 @@ import {
   RobotDisconnectedPayload,
   RobotReconnectedPayload,
 } from './telemetry-connection.events';
-import { IngestedMessageEnvelope, TELEMETRY_EVENTS } from './services/telemetry-validation.service';
+import {
+  IngestedMessageEnvelope,
+  TELEMETRY_EVENTS,
+} from './services/telemetry-validation.service';
 
 /**
  * LISTENER TEMPORÁRIO, só para conferir os eventos internos (critério de aceitação).

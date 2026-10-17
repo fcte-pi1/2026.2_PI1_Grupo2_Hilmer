@@ -14,7 +14,8 @@ import { NestFactory } from '@nestjs/core';
 process.env.TELEMETRY_DEBUG_EVENTS ??= 'true';
 
 async function main() {
-  const { TelemetryModule } = await import('./telemetry/telemetry.module.js');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { TelemetryModule } = require('./telemetry/telemetry.module');
 
   @Module({ imports: [TelemetryModule] })
   class DevModule {}

@@ -74,17 +74,21 @@ A taxa é medida em janelas de 1 s (`ConnectionMonitorService.getRate(robotId)`)
 cd src/backend
 npm install
 
-# testes automatizados
+# testes automatizados (63 testes unitários)
 npm test
 
-# servidor de ingestão (só o TelemetryModule, sem banco) com o log temporário dos eventos
+# servidor completo NestJS (Ingestão WebSocket + Prisma + Regras de Corridas)
+npm run start:dev
+
+# servidor de ingestão isolado (só o TelemetryModule, sem banco)
 npm run ingest:dev
 
-# em outro terminal, a partir de src/backend: corrida completa com o mock
-pip install -r ../mocks/requirements.txt
-python ../mocks/robot_mock.py --maze 4x4
+# emulador do robô físico (Node.js/TypeScript) disparando telemetria a 10 Hz
+npm run robot:emulator
+
+# emulador com opções customizadas (loop contínuo, frequência, passos)
+npm run robot:emulator -- --hz 10 --steps 120 --loop
 ```
 
-O log mostra os eventos `run.*`, um `telemetry.received` a cada 10 pacotes e a taxa medida a cada segundo (`... Hz`, nível `debug`). Para testar a queda e a retomada, suspenda o mock no meio da corrida (Ctrl+Z) e retome (`fg`); no Windows, use uma pausa dentro do mock.
+O log mostra os eventos `run.*`, o registro das corridas no banco (`[RunsService] Corrida iniciada/encerrada`), um `telemetry.received` a cada 10 pacotes e a taxa medida a cada segundo (`... Hz`, nível `debug`).
 
-O `ingest:dev` liga o listener temporário de log (`telemetry-events.logger.ts`), que deve ser removido quando os módulos Realtime, Persistence e Alerts estiverem consumindo os eventos. Reinicie o servidor entre corridas: o `SequenceTrackerService` não reinicia o `seq` e descartaria o início da corrida seguinte.
