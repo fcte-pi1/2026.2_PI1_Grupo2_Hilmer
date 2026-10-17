@@ -358,6 +358,7 @@ node_modules/
 # Builds
 dist/
 .next/
+next-env.d.ts
 out/
 build/
 coverage/
