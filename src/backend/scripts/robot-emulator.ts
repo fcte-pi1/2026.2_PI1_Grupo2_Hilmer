@@ -17,7 +17,49 @@ interface EmulatorConfig {
   robotId: string;
   totalSteps: number;
   loop: boolean;
+  maze: '4x4' | '8x4' | '12x4';
 }
+
+type TrajectoryPoint = {
+  x: number;
+  y: number;
+  heading: 'N' | 'E' | 'S' | 'W';
+  walls: { n?: boolean; e?: boolean; s?: boolean; w?: boolean };
+};
+
+// Trajetórias simuladas para cada dimensão de labirinto
+const trajectories: Record<'4x4' | '8x4' | '12x4', TrajectoryPoint[]> = {
+  '4x4': [
+    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
+    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
+    { x: 0, y: 2, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
+    { x: 1, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
+    { x: 2, y: 2, heading: 'E', walls: { s: true, n: false, w: false, e: false } },
+    { x: 2, y: 3, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
+    { x: 3, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+  ],
+  '8x4': [
+    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
+    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
+    { x: 1, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
+    { x: 2, y: 1, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
+    { x: 3, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
+    { x: 4, y: 2, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
+    { x: 5, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
+    { x: 6, y: 3, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
+    { x: 7, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+  ],
+  '12x4': [
+    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
+    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
+    { x: 2, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
+    { x: 4, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
+    { x: 6, y: 2, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
+    { x: 8, y: 3, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
+    { x: 10, y: 3, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
+    { x: 11, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+  ],
+};
 
 // Configurações padrão e parse de argumentos CLI
 function parseArgs(): EmulatorConfig {
@@ -27,28 +69,28 @@ function parseArgs(): EmulatorConfig {
     return idx !== -1 && args[idx + 1] ? args[idx + 1] : fallback;
   };
 
+  const rawMaze = getArg('--maze', '4x4');
+  const maze = (['4x4', '8x4', '12x4'].includes(rawMaze) ? rawMaze : '4x4') as
+    | '4x4'
+    | '8x4'
+    | '12x4';
+
   return {
-    url: getArg('--url', process.env.TELEMETRY_WS_URL ?? 'ws://localhost:3001/ingest'),
+    url: getArg(
+      '--url',
+      process.env.TELEMETRY_WS_URL ?? 'ws://localhost:3001/ingest',
+    ),
     hz: Math.max(1, Math.min(50, Number(getArg('--hz', '10')))),
     robotId: getArg('--robot-id', 'PIH_02_MOUSE'),
     totalSteps: Number(getArg('--steps', '100')), // 100 passos a 10 Hz = 10 segundos
     loop: args.includes('--loop'),
+    maze,
   };
 }
 
 const config = parseArgs();
 const intervalMs = Math.round(1000 / config.hz);
-
-// Trajetória simulada em um labirinto 4x4 (x, y, heading)
-const trajectory: Array<{ x: number; y: number; heading: 'N' | 'E' | 'S' | 'W'; walls: { n?: boolean; e?: boolean; s?: boolean; w?: boolean } }> = [
-  { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
-  { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
-  { x: 0, y: 2, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
-  { x: 1, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
-  { x: 2, y: 2, heading: 'E', walls: { s: true, n: false, w: false, e: false } },
-  { x: 2, y: 3, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
-  { x: 3, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } }, // Ponto central / Chegada
-];
+const trajectory = trajectories[config.maze];
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,6 +104,7 @@ async function runSimulation(): Promise<void> {
   console.log(`⏱️ Frequência:     ${config.hz} Hz (intervalo: ${intervalMs} ms)`);
   console.log(`🆔 Robot ID:       ${config.robotId}`);
   console.log(`🔄 Modo Loop:      ${config.loop ? 'Ativado' : 'Desativado'}`);
+  console.log(`🗺️ Labirinto:       ${config.maze}`);
   console.log(`🏁 Passos/Ciclo:   ${config.totalSteps}`);
   console.log('='.repeat(65));
 
@@ -98,13 +141,29 @@ function simulateSingleRun(): Promise<void> {
       console.log('🔌 Conectado ao Gateway WebSocket com sucesso!\n');
       startTime = Date.now();
 
-      // 1. Envia evento de início de corrida (RUN_START)
-      const startPayload = {
+      // 1. Envia evento de calibração concluída (CALIBRATION_DONE)
+      const calibPayload = {
         v: 1,
         type: 'event',
         robot_id: config.robotId,
         seq: seq++,
         t_ms: 0,
+        event: 'CALIBRATION_DONE',
+        ok: true,
+        battery_pct: battery,
+      };
+      ws.send(JSON.stringify(calibPayload));
+      console.log(
+        `🔧 [EVENT] CALIBRATION_DONE enviado (seq=${calibPayload.seq})`,
+      );
+
+      // 2. Envia evento de início de corrida (RUN_START)
+      const startPayload = {
+        v: 1,
+        type: 'event',
+        robot_id: config.robotId,
+        seq: seq++,
+        t_ms: 50,
         event: 'RUN_START',
         battery_pct: battery,
         pos: { x: trajectory[0].x, y: trajectory[0].y },
