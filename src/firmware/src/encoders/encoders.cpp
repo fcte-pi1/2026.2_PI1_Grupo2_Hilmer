@@ -21,6 +21,12 @@ struct Encoder {
 static Encoder encoder_esquerdo;
 static Encoder encoder_direito;
 
+// ESP_ERR_INVALID_STATE indica que o ponto já existe, o que também serve.
+static bool adicionar_limite(pcnt_unit_handle_t unidade, int limite) {
+    esp_err_t erro = pcnt_unit_add_watch_point(unidade, limite);
+    return erro == ESP_OK || erro == ESP_ERR_INVALID_STATE;
+}
+
 static bool iniciar_encoder(const PinosEncoder &pinos, Encoder &encoder) {
     encoder.invertido = pinos.invertido;
 
@@ -66,8 +72,8 @@ static bool iniciar_encoder(const PinosEncoder &pinos, Encoder &encoder) {
                                   PCNT_CHANNEL_LEVEL_ACTION_INVERSE);
 
     // O accum_count só funciona com os limites registrados como pontos de observação.
-    if (pcnt_unit_add_watch_point(encoder.unidade, LIMITE_ALTO) != ESP_OK ||
-        pcnt_unit_add_watch_point(encoder.unidade, LIMITE_BAIXO) != ESP_OK) {
+    if (!adicionar_limite(encoder.unidade, LIMITE_ALTO) ||
+        !adicionar_limite(encoder.unidade, LIMITE_BAIXO)) {
         return false;
     }
 
