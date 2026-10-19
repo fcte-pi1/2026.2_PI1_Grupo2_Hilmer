@@ -7,7 +7,8 @@ import { TelemetryValidationService } from './services/telemetry-validation.serv
 import { TelemetryEventsLogger } from './telemetry-events.logger';
 
 // Listener temporário de log dos eventos (ver telemetry-events.logger.ts).
-const debugProviders = process.env.TELEMETRY_DEBUG_EVENTS === 'true' ? [TelemetryEventsLogger] : [];
+const debugProviders =
+  process.env.TELEMETRY_DEBUG_EVENTS === 'true' ? [TelemetryEventsLogger] : [];
 
 @Module({
   imports: [EventEmitterModule.forRoot()],
@@ -18,6 +19,10 @@ const debugProviders = process.env.TELEMETRY_DEBUG_EVENTS === 'true' ? [Telemetr
     TelemetryIngestService, // servidor ws em /ingest, porta 3001
     ...debugProviders,
   ],
-  exports: [SequenceTrackerService, TelemetryValidationService, ConnectionMonitorService],
+  exports: [
+    SequenceTrackerService,
+    TelemetryValidationService,
+    ConnectionMonitorService,
+  ],
 })
 export class TelemetryModule {}

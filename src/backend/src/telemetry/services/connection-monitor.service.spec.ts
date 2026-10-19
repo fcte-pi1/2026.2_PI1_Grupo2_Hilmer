@@ -25,7 +25,9 @@ describe('ConnectionMonitorService', () => {
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     emit = jest.fn();
-    monitor = new ConnectionMonitorService({ emit } as unknown as EventEmitter2);
+    monitor = new ConnectionMonitorService({
+      emit,
+    } as unknown as EventEmitter2);
     monitor.onModuleInit();
   });
 
@@ -170,5 +172,4 @@ describe('ConnectionMonitorService', () => {
       expect(emitted(CONNECTION_EVENTS.ROBOT_DISCONNECTED)).toHaveLength(1);
     });
   });
-
 });

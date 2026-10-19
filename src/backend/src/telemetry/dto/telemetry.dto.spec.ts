@@ -1,10 +1,7 @@
 import 'reflect-metadata';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import {
-  EventPayloadDto,
-  TelemetryPayloadDto,
-} from './telemetry.dto';
+import { EventPayloadDto, TelemetryPayloadDto } from './telemetry.dto';
 
 describe('Telemetry DTOs Validation', () => {
   describe('TelemetryPayloadDto', () => {
@@ -48,7 +45,9 @@ describe('Telemetry DTOs Validation', () => {
       const invalidNegative = { ...validTelemetry, battery_pct: -5 };
       const dtoNegative = plainToInstance(TelemetryPayloadDto, invalidNegative);
       const errorsNegative = await validate(dtoNegative);
-      expect(errorsNegative.some((e) => e.property === 'battery_pct')).toBe(true);
+      expect(errorsNegative.some((e) => e.property === 'battery_pct')).toBe(
+        true,
+      );
 
       const invalidOver = { ...validTelemetry, battery_pct: 105 };
       const dtoOver = plainToInstance(TelemetryPayloadDto, invalidOver);
