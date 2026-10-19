@@ -14,6 +14,7 @@ Código do ESP32-DevKit-V1 do Micromouse. Usa o [PlatformIO](https://platformio.
 3. Instale a extensão **PlatformIO IDE**.
 4. No VS Code, abra a pasta `src/firmware/` (não a raiz do repositório). A primeira abertura baixa a plataforma e demora alguns minutos.
 5. Para os testes no PC, é preciso ter um compilador C++ (`g++`) no PATH. No Windows, use o [MinGW-w64](https://www.mingw-w64.org/) ou o [MSYS2](https://www.msys2.org/).
+6. Copie `src/config/credenciais.exemplo.h` para `src/config/credenciais.h` e preencha o nome e a senha do Wi-Fi e o IP do notebook com o backend. Esse arquivo está no `.gitignore` e não vai para o repositório. Sem ele, `pio run` falha com uma mensagem pedindo o arquivo.
 
 ## Comandos
 
@@ -39,6 +40,8 @@ src/firmware/
 │   ├── encoders/         # encoders dos N20 (PCNT)
 │   ├── sensores/         # I2C: VL53L0X, BMI088 e INA219
 │   ├── armazenamento/    # cartão microSD (SPI)
+│   ├── comunicacao/      # Wi-Fi e WebSocket até o backend
+│   ├── config/           # pinos e credenciais (credenciais.h fica fora do git)
 │   ├── navegacao/        # lógica pura: mapa do labirinto, Flood Fill, PID, bateria, odometria, telemetria
 │   └── tarefas/          # tarefas do FreeRTOS
 └── test/                 # testes Unity da lógica pura
@@ -71,7 +74,7 @@ O módulo `navegacao/telemetria.*` monta o texto JSON que o robô envia ao siste
 | `objetivo`   | evento `GOAL_REACHED` (`pos`)     | ao chegar na célula objetivo        |
 | `fim`        | evento `RUN_END`                  | no fim da corrida                   |
 
-A classe `Telemetria` guarda o `seq`, que cresce a cada mensagem, inclusive nos eventos. Cada função escreve num _buffer_ de `TELEMETRIA_TAMANHO_MAX` caracteres e retorna o tamanho do texto. Se ele não couber, a função retorna 0 e o `seq` não avança. O envio pelo WebSocket fica no cliente Wi-Fi (#239).
+A classe `Telemetria` guarda o `seq`, que cresce a cada mensagem, inclusive nos eventos. Cada função escreve num _buffer_ de `TELEMETRIA_TAMANHO_MAX` caracteres e retorna o tamanho do texto. Se ele não couber, a função retorna 0 e o `seq` não avança. O envio pelo WebSocket fica em `comunicacao/`, descrito a seguir.
 
 ```cpp
 Telemetria telemetria("mm-01");
@@ -79,6 +82,24 @@ char texto[TELEMETRIA_TAMANHO_MAX];
 int tamanho = telemetria.inicio(0, 98.0f, texto, sizeof(texto));
 // texto: {"v":1,"type":"event","robot_id":"mm-01","seq":0,"t_ms":0,"event":"RUN_START","battery_pct":98.0}
 ```
+
+## Comunicação (Wi-Fi e WebSocket)
+
+O módulo `comunicacao/` conecta o ESP32 ao gateway do backend (`ws://<ip-do-notebook>:3001/ingest`) com a biblioteca [arduinoWebSockets](https://github.com/Links2004/arduinoWebSockets) (`links2004/WebSockets`). O endereço e a senha da rede ficam em `src/config/credenciais.h` (veja a Instalação).
+
+| Função                  | O que faz                                                         |
+| ----------------------- | ----------------------------------------------------------------- |
+| `comunicacao_iniciar`   | começa a conectar no Wi-Fi, sem esperar                           |
+| `comunicacao_atualizar` | abre o WebSocket quando o Wi-Fi conecta e mantém a conexão viva   |
+| `comunicacao_conectada` | `true` se o Wi-Fi e o WebSocket estão conectados                  |
+| `comunicacao_enviar`    | envia o texto; sem conexão, retorna `false` na hora               |
+
+- **Reconexão:** o Wi-Fi volta sozinho (`WiFi.setAutoReconnect`). O WebSocket tenta de novo a cada 2 s. Um _ping_ a cada 2 s detecta o servidor fora do ar mesmo quando o Wi-Fi continua de pé.
+- **Sem bloqueio:** com o Wi-Fi caído, nenhuma tentativa de conexão é feita. Com o Wi-Fi de pé e o servidor fora, cada tentativa espera no máximo o tempo limite da conexão TCP. Como isso roda no núcleo 0, o controle no núcleo 1 não é afetado.
+- **Canal só de ida:** mensagens do servidor são ignoradas (`arquitetura.md`, seção 2.4).
+- **Pacotes na queda:** por enquanto, o pacote enviado sem conexão é descartado, e o backend vê a lacuna no `seq`. O _buffer_ para reenviar os pacotes depois da queda (`arquitetura.md`, seção 5.5) ainda não foi feito.
+
+Hoje a tarefa `comunicacao` já envia um pacote de telemetria a 10 Hz, com a bateria lida pelo INA219 e os outros campos fixos. Para conferir na placa, rode `npm run ingest:dev` em `src/backend/` e veja os pacotes chegando no log.
 
 ## Tarefas do FreeRTOS
 

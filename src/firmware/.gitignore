@@ -5,3 +5,6 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Senha do Wi-Fi e endereço do backend (modelo em src/config/credenciais.exemplo.h)
+src/config/credenciais.h

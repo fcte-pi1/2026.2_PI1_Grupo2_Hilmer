@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "armazenamento/armazenamento.h"
+#include "comunicacao/comunicacao.h"
 #include "config/pinos.h"
 #include "encoders/encoders.h"
 #include "motores/motores.h"
@@ -30,6 +31,7 @@ void setup() {
     if (!armazenamento_iniciar()) {
         Serial.println("Aviso: cartão SD não encontrado");
     }
+    comunicacao_iniciar();
 
     tarefas_criar();
 
