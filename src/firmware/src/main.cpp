@@ -1,6 +1,7 @@
 #include <Arduino.h>
 
 #include "armazenamento/armazenamento.h"
+#include "comunicacao/comunicacao.h"
 #include "encoders/encoders.h"
 #include "motores/motores.h"
 #include "sensores/sensores.h"
@@ -17,6 +18,7 @@ void setup() {
     if (!armazenamento_iniciar()) {
         Serial.println("Aviso: cartão SD não encontrado");
     }
+    comunicacao_iniciar();
 
     tarefas_criar();
     Serial.println("Micromouse iniciado");

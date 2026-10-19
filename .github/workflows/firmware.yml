@@ -39,5 +39,9 @@ jobs:
       - name: Testes no PC
         run: pio test -e native
 
+      # O credenciais.h real fica fora do git; para compilar, basta o exemplo.
+      - name: Criar credenciais de exemplo
+        run: cp src/config/credenciais.exemplo.h src/config/credenciais.h
+
       - name: Compilar para o ESP32
         run: pio run -e esp32dev
