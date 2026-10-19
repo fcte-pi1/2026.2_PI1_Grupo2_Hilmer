@@ -18,6 +18,8 @@ static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_
 static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
 static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, true};
 
+static const PinosSD PINOS_SD = {Pinos::SD_SCK, Pinos::SD_MISO, Pinos::SD_MOSI, Pinos::SD_CS};
+
 void setup() {
     // Motores primeiro, para a ponte H ficar desligada o quanto antes.
     motores_iniciar(MOTOR_ESQUERDO, MOTOR_DIREITO, Pinos::MOTOR_STBY);
@@ -28,7 +30,7 @@ void setup() {
         Serial.println("Erro: falha ao configurar o PCNT dos encoders");
     }
     sensores_iniciar();
-    if (!armazenamento_iniciar()) {
+    if (!armazenamento_iniciar(PINOS_SD)) {
         Serial.println("Aviso: cartão SD não encontrado");
     }
     comunicacao_iniciar();
