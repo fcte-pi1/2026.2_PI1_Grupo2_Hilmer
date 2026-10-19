@@ -53,6 +53,15 @@ A pasta `navegacao/` não pode incluir `Arduino.h` nem nada do ESP-IDF. Só ela 
 
 Regra prática: se o código precisa de um pino, de um sensor ou de um `delay`, ele fica num _driver_. Se é cálculo, fica em `navegacao/` (ou em outra pasta de lógica pura incluída no `build_src_filter` do ambiente `native`) e ganha um teste em `test/`.
 
+### Exemplos dos _drivers_
+
+Cada _driver_ tem um exemplo mínimo em `src/exemplos/`, com o próprio `setup()` e `loop()`, para testar na placa sem o resto do _firmware_. Cada exemplo tem um ambiente `exemplo_<nome>` no `platformio.ini`, e o comentário no topo do arquivo explica o que conferir:
+
+```
+pio run -e exemplo_<nome> -t upload
+pio device monitor
+```
+
 ## Telemetria
 
 O módulo `navegacao/telemetria.*` monta o texto JSON que o robô envia ao sistema web. O formato é o contrato combinado com a equipe de Software, descrito na seção 2 de [`src/docs/arquitetura.md`](../docs/arquitetura.md) e validado pelo backend em `src/backend/src/telemetry/dto/telemetry.dto.ts`.
