@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
 import { TelemetryValidationService } from './telemetry-validation.service';
 
@@ -32,12 +37,18 @@ export class TelemetryIngestService implements OnModuleInit, OnModuleDestroy {
     const port = Number(process.env.TELEMETRY_WS_PORT ?? DEFAULT_INGEST_PORT);
 
     await new Promise<void>((resolve, reject) => {
-      const wss = new WebSocketServer({ port, path: INGEST_PATH, maxPayload: MAX_PAYLOAD_BYTES });
+      const wss = new WebSocketServer({
+        port,
+        path: INGEST_PATH,
+        maxPayload: MAX_PAYLOAD_BYTES,
+      });
       const onStartupError = (err: Error) => reject(err);
       wss.once('error', onStartupError);
       wss.once('listening', () => {
         wss.off('error', onStartupError);
-        wss.on('error', (err) => this.logger.error(`Erro no servidor WebSocket: ${err.message}`));
+        wss.on('error', (err) =>
+          this.logger.error(`Erro no servidor WebSocket: ${err.message}`),
+        );
         resolve();
       });
       this.wss = wss;
@@ -46,7 +57,9 @@ export class TelemetryIngestService implements OnModuleInit, OnModuleDestroy {
     this.wss?.on('connection', (socket, req) =>
       this.onConnection(socket, req.socket.remoteAddress ?? 'desconhecido'),
     );
-    this.logger.log(`Ingestão WebSocket ouvindo em ws://0.0.0.0:${this.port}${INGEST_PATH}`);
+    this.logger.log(
+      `Ingestão WebSocket ouvindo em ws://0.0.0.0:${this.port}${INGEST_PATH}`,
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -70,11 +83,17 @@ export class TelemetryIngestService implements OnModuleInit, OnModuleDestroy {
         .then(() => this.validation.processRawMessage(raw))
         // Um bug nosso não pode derrubar o processo nem a conexão do robô.
         .catch((err: Error) =>
-          this.logger.error(`Falha inesperada ao processar mensagem: ${err.message}`),
+          this.logger.error(
+            `Falha inesperada ao processar mensagem: ${err.message}`,
+          ),
         );
     });
-    socket.on('error', (err) => this.logger.warn(`Erro no socket de ${remote}: ${err.message}`));
-    socket.on('close', (code) => this.logger.log(`Cliente desconectado: ${remote} (código ${code})`));
+    socket.on('error', (err) =>
+      this.logger.warn(`Erro no socket de ${remote}: ${err.message}`),
+    );
+    socket.on('close', (code) =>
+      this.logger.log(`Cliente desconectado: ${remote} (código ${code})`),
+    );
   }
 }
 

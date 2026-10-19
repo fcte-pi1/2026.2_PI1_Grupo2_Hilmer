@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import {
   CONNECTION_EVENTS,
@@ -6,7 +11,10 @@ import {
   RobotDisconnectedPayload,
   RobotReconnectedPayload,
 } from '../telemetry-connection.events';
-import { IngestedMessageEnvelope, TELEMETRY_EVENTS } from './telemetry-validation.service';
+import {
+  IngestedMessageEnvelope,
+  TELEMETRY_EVENTS,
+} from './telemetry-validation.service';
 
 /** Sem mensagens por mais que isso => robot.disconnected (RNF18). */
 export const DISCONNECT_AFTER_MS = 1000;
@@ -91,7 +99,9 @@ export class ConnectionMonitorService implements OnModuleInit, OnModuleDestroy {
       const downtimeMs = now - link.lastSeenAt;
       Object.assign(link, this.newLink(now));
       if (wasOffline) {
-        this.logger.warn(`Robô ${robotId}: dados voltaram após ${downtimeMs} ms`);
+        this.logger.warn(
+          `Robô ${robotId}: dados voltaram após ${downtimeMs} ms`,
+        );
         const payload: RobotReconnectedPayload = {
           robotId,
           downtimeMs,

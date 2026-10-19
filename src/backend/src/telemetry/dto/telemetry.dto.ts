@@ -16,18 +16,10 @@ import { Type } from 'class-transformer';
 
 export type HeadingDirection = 'N' | 'E' | 'S' | 'W';
 export type RobotState =
-  | 'IDLE'
-  | 'EXPLORING'
-  | 'RETURNING'
-  | 'SPEED_RUN'
-  | 'GOAL_REACHED'
-  | 'ERROR';
+  'IDLE' | 'EXPLORING' | 'RETURNING' | 'SPEED_RUN' | 'GOAL_REACHED' | 'ERROR';
 
 export type RobotEventType =
-  | 'CALIBRATION_DONE'
-  | 'RUN_START'
-  | 'GOAL_REACHED'
-  | 'RUN_END';
+  'CALIBRATION_DONE' | 'RUN_START' | 'GOAL_REACHED' | 'RUN_END';
 
 export class PositionDto {
   @IsInt()
@@ -81,7 +73,7 @@ export class BaseMessageDto {
 
 export class TelemetryPayloadDto extends BaseMessageDto {
   @Equals('telemetry')
-  override type: 'telemetry' = 'telemetry';
+  override type = 'telemetry' as const;
 
   @ValidateNested()
   @Type(() => PositionDto)
@@ -125,7 +117,7 @@ export class TelemetryPayloadDto extends BaseMessageDto {
 
 export class EventPayloadDto extends BaseMessageDto {
   @Equals('event')
-  override type: 'event' = 'event';
+  override type = 'event' as const;
 
   @IsIn(['CALIBRATION_DONE', 'RUN_START', 'GOAL_REACHED', 'RUN_END'])
   event: RobotEventType;

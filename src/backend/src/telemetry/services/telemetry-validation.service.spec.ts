@@ -113,12 +113,16 @@ describe('TelemetryValidationService', () => {
       };
 
       // Primeiro envio
-      const res1 = await service.processRawMessage(JSON.stringify(validTelemetry));
+      const res1 = await service.processRawMessage(
+        JSON.stringify(validTelemetry),
+      );
       expect(res1).not.toBeNull();
       expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
 
       // Reenvio (duplicata de seq 10)
-      const res2 = await service.processRawMessage(JSON.stringify(validTelemetry));
+      const res2 = await service.processRawMessage(
+        JSON.stringify(validTelemetry),
+      );
       expect(res2).toBeNull();
       expect(service.getStats().duplicateSeq).toBe(1);
       // O contador de emissões permanece em 1

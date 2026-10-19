@@ -41,7 +41,8 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "pretest:int": "npm run services:up && npm run services:wait:database && dotenv -e .env.test -- node infra/scripts/create-test-db.js && dotenv -e .env.test -- prisma db push --skip-generate",
     "test:int": "dotenv -e .env.test -- jest --config ./tests/jest-integration.json --runInBand --verbose",
-    "test:int:watch": "dotenv -e .env.test -- jest --config ./tests/jest-integration.json --watchAll --runInBand --verbose"
+    "test:int:watch": "dotenv -e .env.test -- jest --config ./tests/jest-integration.json --watchAll --runInBand --verbose",
+    "robot:emulator": "ts-node scripts/robot-emulator.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

@@ -8,7 +8,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function waitFor(condition: () => boolean, timeoutMs = 1000) {
   const start = Date.now();
   while (!condition()) {
-    if (Date.now() - start > timeoutMs) throw new Error('timeout esperando a condição');
+    if (Date.now() - start > timeoutMs)
+      throw new Error('timeout esperando a condição');
     await sleep(5);
   }
 }
@@ -33,7 +34,9 @@ describe('TelemetryIngestService (/ingest)', () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
     process.env.TELEMETRY_WS_PORT = '0';
     processRawMessage = jest.fn().mockResolvedValue(null);
-    ingest = new TelemetryIngestService({ processRawMessage } as unknown as TelemetryValidationService);
+    ingest = new TelemetryIngestService({
+      processRawMessage,
+    } as unknown as TelemetryValidationService);
     await ingest.onModuleInit();
   });
 
