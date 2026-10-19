@@ -62,6 +62,26 @@ pio run -e exemplo_<nome> -t upload
 pio device monitor
 ```
 
+## Navegação (Flood Fill)
+
+O módulo `navegacao/floodfill.*` decide para onde o robô vai, usando o mapa de `navegacao/labirinto.*`. O robô sai do canto (0, 0), que é o sudoeste, e o objetivo é o canto oposto (`largura - 1`, `altura - 1`).
+
+1. A partir do objetivo, cada célula recebe o número de passos que faltam até ele, considerando só as paredes já descobertas. Uma célula ainda não visitada conta como sem paredes internas.
+2. A cada célula, o robô anda para a vizinha sem parede com o menor número. Se houver empate, segue reto, para fazer menos curvas.
+3. `proximaDirecao` recalcula os números toda vez que é chamada. Assim, quando uma parede nova entra no mapa, o caminho já muda na próxima decisão. No 12x4 são só 48 células, então o cálculo é rápido.
+
+```cpp
+Labirinto mapa(4, 4);
+FloodFill floodfill(mapa);
+Direcao proxima;
+// A cada célula: marcar no mapa as paredes lidas pelos sensores e então decidir.
+if (floodfill.proximaDirecao(x, y, direcao_atual, proxima)) {
+    // virar para "proxima" e andar uma célula
+}
+```
+
+`proximaDirecao` retorna `false` quando o robô já está no objetivo ou quando não existe caminho até ele.
+
 ## Telemetria
 
 O módulo `navegacao/telemetria.*` monta o texto JSON que o robô envia ao sistema web. O formato é o contrato combinado com a equipe de Software, descrito na seção 2 de [`src/docs/arquitetura.md`](../docs/arquitetura.md) e validado pelo backend em `src/backend/src/telemetry/dto/telemetry.dto.ts`.
