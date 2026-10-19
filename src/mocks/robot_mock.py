@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Mock simples do robô micromouse.
+Mock do robô Micromouse.
 
-Simula o robô andando por um caminho fixo até o objetivo e envia a telemetria
-falsa (JSON) a cada 100 ms, no formato do contrato (docs/arquitetura.md, seção 2).
+Simula o robô percorrendo o labirinto até o objetivo e transmite telemetria
+em tempo real via WebSocket ou stdout conforme o contrato do backend.
 
 Uso:
-    python robot_mock.py --maze 4x4             # envia para ws://localhost:3001/ingest
-    python robot_mock.py --maze 8x4 --stdout    # só imprime o JSON no terminal
+    python mocks/robot_mock.py --maze 4x4
+    python mocks/robot_mock.py --maze 8x4 --rate 10 --stdout
+    python mocks/robot_mock.py --maze 12x4 --url ws://localhost:3001/ingest
 """
 import argparse
 import json
@@ -15,8 +16,7 @@ import random
 import sys
 import time
 
-# Caminho fixo (células da largada até o objetivo) de cada labirinto.
-# (0,0) é o canto inferior esquerdo; y cresce para o norte.
+# Caminhos pré-definidos (células da largada até o objetivo) para cada dimensão
 PATHS = {
     "4x4": [(0, 0), (0, 1), (0, 2), (1, 2), (1, 1), (2, 1), (3, 1), (3, 2), (3, 3)],
     "8x4": [(0, 0), (1, 0), (2, 0), (2, 1), (1, 1), (1, 2), (0, 2), (0, 3), (1, 3), (2, 3),
@@ -27,84 +27,137 @@ PATHS = {
 }
 
 HEADINGS = {(0, 1): "N", (1, 0): "E", (0, -1): "S", (-1, 0): "W"}
-CELL_MM = 180     # tamanho de uma célula
-TICK_S = 0.1      # 100 ms entre pacotes -> 10 Hz (RNF15)
+CELL_MM = 180.0  # Tamanho padrão da célula do labirinto em milímetros
 
 
-def build_run(path, robot_id="mm-01"):
-    """Gera a lista com todas as mensagens da corrida, em ordem."""
+def build_run(path, rate_hz=10.0, robot_id="mm-01"):
+    """Gera a sequência cronológica completa de mensagens da corrida."""
+    tick_s = 1.0 / rate_hz
+    tick_ms = int(tick_s * 1000)
+
     msgs = []
     seq = 0
     t_ms = 0
     odo = 0.0
-    battery = random.uniform(95, 100)
+    battery = round(random.uniform(96.0, 100.0), 1)
 
     def add(**fields):
         nonlocal seq
-        msgs.append({"v": 1, "robot_id": robot_id, "seq": seq, "t_ms": t_ms, **fields})
+        msgs.append({
+            "v": 1,
+            "robot_id": robot_id,
+            "seq": seq,
+            "t_ms": t_ms,
+            **fields
+        })
         seq += 1
 
     def telemetry(x, y, heading, speed, state):
-        add(type="telemetry", pos={"x": x, "y": y}, heading=heading,
-            speed_mm_s=round(speed, 1), odo_mm=int(odo),
-            battery_pct=round(battery, 1), state=state)
+        add(
+            type="telemetry",
+            pos={"x": x, "y": y},
+            heading=heading,
+            speed_mm_s=round(speed, 1),
+            odo_mm=int(odo),
+            battery_pct=round(max(0.0, battery), 1),
+            state=state,
+        )
 
+    # 1. Evento de Calibração
     add(type="event", event="CALIBRATION_DONE", ok=True)
-    add(type="event", event="RUN_START", battery_pct=round(battery, 1))
+    t_ms += 200
 
-    # Anda de uma célula para a próxima, gerando um pacote a cada 100 ms.
+    # 2. Início oficial da corrida
+    add(type="event", event="RUN_START", battery_pct=battery)
+    t_ms += 100
+
+    # 3. Navegação passo a passo pelas células do trajeto
+    heading = "N"
     for (x, y), (nx, ny) in zip(path, path[1:]):
         heading = HEADINGS[(nx - x, ny - y)]
         walked = 0.0
         while walked < CELL_MM:
-            speed = random.uniform(280, 320)             # mm/s, com um pouco de ruído
-            step = min(speed * TICK_S, CELL_MM - walked)
+            speed = random.uniform(280.0, 320.0)  # Velocidade média em mm/s com variação
+            step = min(speed * tick_s, CELL_MM - walked)
             walked += step
             odo += step
-            t_ms += 100
-            battery -= 0.05
-            # Passou da metade da célula: já conta como estando na próxima.
-            cx, cy = (x, y) if walked < CELL_MM / 2 else (nx, ny)
+            t_ms += tick_ms
+            battery -= 0.02
+
+            # Atualiza a coordenada ao ultrapassar a metade da célula
+            cx, cy = (x, y) if walked < CELL_MM / 2.0 else (nx, ny)
             telemetry(cx, cy, heading, speed, "EXPLORING")
 
+    # 4. Chegada ao objetivo final
     gx, gy = path[-1]
     add(type="event", event="GOAL_REACHED", pos={"x": gx, "y": gy})
+    t_ms += 100
     telemetry(gx, gy, heading, 0.0, "GOAL_REACHED")
+
+    # 5. Conclusão da corrida
+    t_ms += 100
     add(type="event", event="RUN_END")
+
     return msgs
 
 
-def play(msgs, send):
-    """Envia as mensagens no ritmo real: um pacote de telemetria a cada 100 ms."""
+def play(msgs, send, rate_hz=10.0):
+    """Transmite os pacotes no ritmo real definido pela frequência em Hz."""
+    tick_s = 1.0 / rate_hz
     next_tick = time.monotonic()
     for msg in msgs:
         send(msg)
-        if msg["type"] == "telemetry":
-            # Espera até o próximo "tique" de 100 ms, descontando o tempo gasto no envio.
-            next_tick += TICK_S
+        if msg.get("type") == "telemetry":
+            next_tick += tick_s
             time.sleep(max(0.0, next_tick - time.monotonic()))
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Mock simples do robô micromouse")
-    parser.add_argument("--maze", choices=PATHS.keys(), default="4x4")
-    parser.add_argument("--url", default="ws://localhost:3001/ingest")
-    parser.add_argument("--stdout", action="store_true", help="imprime o JSON em vez de enviar")
+    parser = argparse.ArgumentParser(description="Mock do robô Micromouse")
+    parser.add_argument(
+        "--maze",
+        choices=list(PATHS.keys()),
+        default="4x4",
+        help="Labirinto a percorrer (4x4, 8x4, 12x4)"
+    )
+    parser.add_argument(
+        "--rate",
+        type=float,
+        default=10.0,
+        help="Taxa de envio em Hz (padrão: 10 Hz)"
+    )
+    parser.add_argument(
+        "--url",
+        default="ws://localhost:3001/ingest",
+        help="URL do WebSocket de ingestão"
+    )
+    parser.add_argument(
+        "--stdout",
+        action="store_true",
+        help="Exibe os JSONs no terminal em vez de enviar via WebSocket"
+    )
     args = parser.parse_args()
 
-    msgs = build_run(PATHS[args.maze])
+    msgs = build_run(PATHS[args.maze], rate_hz=args.rate)
 
     if args.stdout:
-        play(msgs, lambda msg: print(json.dumps(msg), flush=True))
+        play(msgs, lambda msg: print(json.dumps(msg), flush=True), rate_hz=args.rate)
     else:
-        from websockets.sync.client import connect
+        try:
+            from websockets.sync.client import connect
+        except ImportError:
+            sys.exit("Erro: pacote 'websockets' não instalado. Instale com: pip install websockets")
+
         try:
             with connect(args.url) as ws:
-                play(msgs, lambda msg: ws.send(json.dumps(msg)))
+                play(msgs, lambda msg: ws.send(json.dumps(msg)), rate_hz=args.rate)
         except OSError as exc:
             sys.exit(f"Não foi possível conectar em {args.url}: {exc}")
 
-    print(f"Corrida {args.maze} finalizada: {len(msgs)} mensagens.", file=sys.stderr)
+    print(
+        f"Corrida no labirinto {args.maze} finalizada com sucesso ({len(msgs)} pacotes transmitidos a {args.rate} Hz).",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":
