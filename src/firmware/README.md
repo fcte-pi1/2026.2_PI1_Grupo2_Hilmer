@@ -39,7 +39,7 @@ src/firmware/
 │   ├── encoders/         # encoders dos N20 (PCNT)
 │   ├── sensores/         # I2C: VL53L0X, BMI088 e INA219
 │   ├── armazenamento/    # cartão microSD (SPI)
-│   ├── navegacao/        # lógica pura: mapa do labirinto, Flood Fill, PID, bateria, odometria
+│   ├── navegacao/        # lógica pura: mapa do labirinto, Flood Fill, PID, bateria, odometria, telemetria
 │   └── tarefas/          # tarefas do FreeRTOS
 └── test/                 # testes Unity da lógica pura
 ```
@@ -49,6 +49,27 @@ src/firmware/
 A pasta `navegacao/` não pode incluir `Arduino.h` nem nada do ESP-IDF. Só ela é compilada no ambiente `native`, e por isso dá para testar o mapa e o Flood Fill no PC, sem placa. As outras pastas são _drivers_ que falam com o _hardware_ e só são testadas na placa.
 
 Regra prática: se o código precisa de um pino, de um sensor ou de um `delay`, ele fica num _driver_. Se é cálculo, fica em `navegacao/` (ou em outra pasta de lógica pura incluída no `build_src_filter` do ambiente `native`) e ganha um teste em `test/`.
+
+## Telemetria
+
+O módulo `navegacao/telemetria.*` monta o texto JSON que o robô envia ao sistema web. O formato é o contrato combinado com a equipe de Software, descrito na seção 2 de [`src/docs/arquitetura.md`](../docs/arquitetura.md) e validado pelo backend em `src/backend/src/telemetry/dto/telemetry.dto.ts`.
+
+| Função       | Mensagem                          | Quando enviar                       |
+| ------------ | --------------------------------- | ----------------------------------- |
+| `pacote`     | `telemetry`                       | a cada 100 ms (10 Hz) durante a corrida |
+| `calibracao` | evento `CALIBRATION_DONE` (`ok`)  | ao terminar a calibração dos sensores |
+| `inicio`     | evento `RUN_START` (`battery_pct`) | no início da corrida               |
+| `objetivo`   | evento `GOAL_REACHED` (`pos`)     | ao chegar na célula objetivo        |
+| `fim`        | evento `RUN_END`                  | no fim da corrida                   |
+
+A classe `Telemetria` guarda o `seq`, que cresce a cada mensagem, inclusive nos eventos. Cada função escreve num _buffer_ de `TELEMETRIA_TAMANHO_MAX` caracteres e retorna o tamanho do texto. Se ele não couber, a função retorna 0 e o `seq` não avança. O envio pelo WebSocket fica no cliente Wi-Fi (#239).
+
+```cpp
+Telemetria telemetria("mm-01");
+char texto[TELEMETRIA_TAMANHO_MAX];
+int tamanho = telemetria.inicio(0, 98.0f, texto, sizeof(texto));
+// texto: {"v":1,"type":"event","robot_id":"mm-01","seq":0,"t_ms":0,"event":"RUN_START","battery_pct":98.0}
+```
 
 ## Tarefas do FreeRTOS
 
