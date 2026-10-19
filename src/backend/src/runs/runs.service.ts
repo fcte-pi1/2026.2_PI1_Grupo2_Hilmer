@@ -242,6 +242,148 @@ export class RunsService {
       },
     });
   }
+// ==========================================
+  // CONSULTAS REST / HISTÓRICO E RECORDES
+  // ==========================================
+
+  /**
+   * Lista todas as corridas com suporte a filtro por labirinto (ID ou dimensão).
+   */
+  async findAll(mazeId?: string) {
+    const where = mazeId
+      ? {
+          OR: [
+            { labirintoId: mazeId },
+            { labirinto: { dimensao: mazeId } },
+          ],
+        }
+      : {};
+
+    const runs = await this.prisma.corrida.findMany({
+      where,
+      include: {
+        labirinto: true,
+        _count: { select: { telemetrias: true } },
+      },
+      orderBy: { iniciadaEm: 'desc' },
+    });
+
+    return runs.map((run) => this.mapRunResponse(run));
+  }
+
+  /**
+   * Retorna a melhor corrida (menor tempo) para cada labirinto cadastrado.
+   */
+  async findBestRuns() {
+    const labirintos = await this.prisma.labirinto.findMany();
+    const bestRuns = [];
+
+    for (const lab of labirintos) {
+      // Aceita corridas com status de sucesso ('CONCLUIDA' ou 'FINALIZADA')
+      const runs = await this.prisma.corrida.findMany({
+        where: {
+          labirintoId: lab.id,
+          status: { in: ['CONCLUIDA', 'FINALIZADA'] },
+          finalizadaEm: { not: null },
+        },
+      });
+
+      if (runs.length === 0) continue;
+
+      const runsComDuracao = runs.map((r) => {
+        const duracaoSegundos =
+          (new Date(r.finalizadaEm!).getTime() - new Date(r.iniciadaEm).getTime()) / 1000;
+        return {
+          ...r,
+          labirinto: lab,
+          duracaoSegundos: Number(duracaoSegundos.toFixed(2)),
+        };
+      });
+
+      runsComDuracao.sort((a, b) => a.duracaoSegundos - b.duracaoSegundos);
+
+      const best = runsComDuracao[0];
+      bestRuns.push({
+        labirinto: lab.dimensao,
+        labirintoId: lab.id,
+        corridaId: best.id,
+        status: best.status,
+        tempoSegundos: best.duracaoSegundos,
+        iniciadaEm: best.iniciadaEm,
+        finalizadaEm: best.finalizadaEm,
+      });
+    }
+
+    return bestRuns;
+  }
+
+  /**
+   * Busca detalhes e métricas de uma corrida específica por ID.
+   */
+  async findById(id: string) {
+    const run = await this.prisma.corrida.findUnique({
+      where: { id },
+      include: {
+        labirinto: true,
+        _count: { select: { telemetrias: true } },
+      },
+    });
+
+    if (!run) return null;
+
+    const duracaoSegundos = run.finalizadaEm
+      ? Number(
+          (
+            (new Date(run.finalizadaEm).getTime() - new Date(run.iniciadaEm).getTime()) /
+            1000
+          ).toFixed(2),
+        )
+      : null;
+
+    return {
+      ...this.mapRunResponse(run),
+      duracaoSegundos,
+      totalAmostras: run._count.telemetrias,
+    };
+  }
+
+  /**
+   * Retorna as amostras de telemetria de uma corrida ordenadas no tempo.
+   */
+  async findSamplesByRunId(corridaId: string) {
+    const exists = await this.prisma.corrida.findUnique({
+      where: { id: corridaId },
+      select: { id: true },
+    });
+
+    if (!exists) return null;
+
+    return this.prisma.telemetria.findMany({
+      where: { corridaId },
+      orderBy: { timestamp: 'asc' },
+    });
+  }
+
+  private mapRunResponse(run: any) {
+    const duracaoSegundos = run.finalizadaEm
+      ? Number(
+          (
+            (new Date(run.finalizadaEm).getTime() - new Date(run.iniciadaEm).getTime()) /
+            1000
+          ).toFixed(2),
+        )
+      : null;
+
+    return {
+      id: run.id,
+      labirintoId: run.labirintoId,
+      labirinto: run.labirinto?.dimensao,
+      status: run.status,
+      iniciadaEm: run.iniciadaEm,
+      finalizadaEm: run.finalizadaEm,
+      duracaoSegundos,
+    };
+  }
 
   // ==========================================
   // EVENT LISTENERS (@nestjs/event-emitter)
