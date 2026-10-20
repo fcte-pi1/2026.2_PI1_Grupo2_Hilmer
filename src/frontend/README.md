@@ -23,9 +23,29 @@ Como rodar:
 
 ### Frontend (Next.js)
 
+Pré-requisito: Node.js 20+ e npm.
+
 ```bash
 cd src/frontend
 cp .env.example .env.local
 npm install
+npm install socket.io-client
 npm run dev
 ```
+
+Abra [http://localhost:3000](http://localhost:3000).
+
+- Dashboard: `/`
+- Histórico: `/historico`
+
+Com as variáveis padrão do `.env.example` não é preciso backend: o mapa usa uma corrida simulada e o histórico usa dados mock.
+
+## Variáveis de ambiente (`.env.local`)
+
+| Variável                       | Padrão                  | Para que serve                                                              |
+| :----------------------------- | :---------------------- | :-------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_URL`          | `http://localhost:3001` | Endereço do backend.                                                        |
+| `NEXT_PUBLIC_USE_MOCK`         | `true`                  | Histórico: `true` usa dados mock; `false` busca no backend.                 |
+| `NEXT_PUBLIC_TELEMETRY_SOURCE` | `simulated`             | Mapa ao vivo: `simulated` (sem backend) ou `socket` (Socket.IO do backend). |
+
+Depois de mudar o `.env.local`, reinicie o `npm run dev`.
