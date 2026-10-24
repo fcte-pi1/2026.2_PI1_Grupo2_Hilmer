@@ -20,7 +20,7 @@
 namespace Pinos
 {
 
-    // Barramento I2C (VL53L0X x4, BMI088 e INA219)
+    // Barramento I2C (VL53L0X x3, MPU6050 e INA219)
 
     constexpr uint8_t I2C_SDA = 21;
     constexpr uint8_t I2C_SCL = 22;
@@ -36,24 +36,21 @@ namespace Pinos
     // O sensor da direita (U10) não tem XSHUT: fica sempre ligado pelo pull-up
     // do módulo e deve ter o endereço trocado primeiro na inicialização.
 
-    constexpr uint8_t XSHUT_FRENTE_DIR = 17; // U7  (XSHUT1)
-    constexpr uint8_t XSHUT_FRENTE_ESQ = 32; // U8  (XSHUT2)
-    constexpr uint8_t XSHUT_ESQUERDA = 33;   // U9  (XSHUT3)
+    constexpr uint8_t XSHUT_FRENTE = 17;   // U7  (XSHUT1)
+    constexpr uint8_t XSHUT_ESQUERDA = 33; // U9  (XSHUT3)
 
-    // Ponte H TB6612FNG
+    // Ponte H L298N (tirar os jumpers de ENA e ENB do módulo para usar o PWM).
+    // Pull-down de 10k em ENA e ENB no hardware: ponte desligada no boot.
 
     // Motor esquerdo (canal A, conector J2)
-    constexpr uint8_t MOTOR_ESQ_PWM = 25; // PWMA
-    constexpr uint8_t MOTOR_ESQ_IN1 = 26; // AIN1
-    constexpr uint8_t MOTOR_ESQ_IN2 = 27; // AIN2
+    constexpr uint8_t MOTOR_ESQ_PWM = 25; // ENA
+    constexpr uint8_t MOTOR_ESQ_IN1 = 26; // IN1
+    constexpr uint8_t MOTOR_ESQ_IN2 = 27; // IN2
 
     // Motor direito (canal B, conector J3)
-    constexpr uint8_t MOTOR_DIR_PWM = 13; // PWMB
-    constexpr uint8_t MOTOR_DIR_IN1 = 14; // BIN1
-    constexpr uint8_t MOTOR_DIR_IN2 = 4;  // BIN2
-
-    // Habilitação da ponte (pull-down de 10k no hardware: ponte desligada no boot)
-    constexpr uint8_t MOTOR_STBY = 16;
+    constexpr uint8_t MOTOR_DIR_PWM = 13; // ENB
+    constexpr uint8_t MOTOR_DIR_IN1 = 14; // IN3
+    constexpr uint8_t MOTOR_DIR_IN2 = 4;  // IN4
 
     // Encoders (pinos somente de entrada, sem pull-up interno)
     // Ler com o periférico PCNT e manter o filtro de glitch habilitado,

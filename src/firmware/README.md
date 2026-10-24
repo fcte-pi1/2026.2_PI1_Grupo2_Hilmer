@@ -14,7 +14,7 @@ Código do ESP32-DevKit-V1 do Micromouse. Usa o [PlatformIO](https://platformio.
 3. Instale a extensão **PlatformIO IDE**.
 4. No VS Code, abra a pasta `src/firmware/` (não a raiz do repositório). A primeira abertura baixa a plataforma e demora alguns minutos.
 5. Para os testes no PC, é preciso ter um compilador C++ (`g++`) no PATH. No Windows, use o [MinGW-w64](https://www.mingw-w64.org/) ou o [MSYS2](https://www.msys2.org/).
-6. Copie `src/config/credenciais.exemplo.h` para `src/config/credenciais.h` e preencha o nome e a senha do Wi-Fi e o IP do notebook com o backend. Esse arquivo está no `.gitignore` e não vai para o repositório. Sem ele, `pio run` falha com uma mensagem pedindo o arquivo.
+6. Copie `src/config/credenciais.exemplo.h` para `src/config/credenciais.h` e preencha o nome e a senha do Wi-Fi e o IP do notebook com o backend. A rede deve ser comum, com senha, em 2,4 GHz (por exemplo, o ponto de acesso do celular); redes WPA2-Enterprise não são suportadas. Esse arquivo está no `.gitignore` e não vai para o repositório. Sem ele, `pio run` falha com uma mensagem pedindo o arquivo.
 
 ## Comandos
 
@@ -36,9 +36,9 @@ src/firmware/
 ├── platformio.ini        # ambientes: esp32dev (robô) e native (testes no PC)
 ├── src/
 │   ├── main.cpp          # inicializa os módulos e cria as tarefas
-│   ├── motores/          # ponte H TB6612FNG (PWM por LEDC)
+│   ├── motores/          # ponte H L298N (PWM por LEDC)
 │   ├── encoders/         # encoders dos N20 (PCNT)
-│   ├── sensores/         # I2C: VL53L0X, BMI088 e INA219
+│   ├── sensores/         # I2C: VL53L0X, MPU6050 e INA219
 │   ├── armazenamento/    # cartão microSD (SPI)
 │   ├── comunicacao/      # Wi-Fi e WebSocket até o backend
 │   ├── config/           # pinos e credenciais (credenciais.h fica fora do git)
