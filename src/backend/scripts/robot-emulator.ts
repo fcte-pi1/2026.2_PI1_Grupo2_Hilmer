@@ -165,6 +165,7 @@ function simulateSingleRun(): Promise<void> {
         seq: seq++,
         t_ms: 50,
         event: 'RUN_START',
+        maze: config.maze,
         battery_pct: battery,
         pos: { x: trajectory[0].x, y: trajectory[0].y },
       };
