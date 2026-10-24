@@ -21,10 +21,9 @@ struct Sensor {
     bool ativo = false;
 };
 
-static Sensor sensor_frente_dir;  // U7
-static Sensor sensor_frente_esq;  // U8
-static Sensor sensor_esquerda;    // U9
-static Sensor sensor_direita;     // U10
+static Sensor sensor_frente;    // U7
+static Sensor sensor_esquerda;  // U9
+static Sensor sensor_direita;   // U10
 
 static bool responde(TwoWire &wire, uint8_t endereco) {
     wire.beginTransmission(endereco);
@@ -72,9 +71,8 @@ static bool ligar_e_iniciar(Sensor &sensor, TwoWire &wire, uint8_t xshut, uint8_
 }
 
 bool distancia_iniciar(TwoWire &wire, const PinosDistancia &pinos) {
-    // Desliga U7, U8 e U9, que voltam ao endereço de fábrica.
-    desligar(pinos.xshut_frente_dir);
-    desligar(pinos.xshut_frente_esq);
+    // Desliga U7 e U9, que voltam ao endereço de fábrica.
+    desligar(pinos.xshut_frente);
     desligar(pinos.xshut_esquerda);
     delay(TEMPO_BOOT_MS);
 
@@ -100,10 +98,7 @@ bool distancia_iniciar(TwoWire &wire, const PinosDistancia &pinos) {
     }
 
     bool ok = iniciar_sensor(sensor_direita, wire, DISTANCIA_ENDERECO_DIREITA);
-    ok &= ligar_e_iniciar(sensor_frente_dir, wire, pinos.xshut_frente_dir,
-                          DISTANCIA_ENDERECO_FRENTE_DIR);
-    ok &= ligar_e_iniciar(sensor_frente_esq, wire, pinos.xshut_frente_esq,
-                          DISTANCIA_ENDERECO_FRENTE_ESQ);
+    ok &= ligar_e_iniciar(sensor_frente, wire, pinos.xshut_frente, DISTANCIA_ENDERECO_FRENTE);
     ok &= ligar_e_iniciar(sensor_esquerda, wire, pinos.xshut_esquerda,
                           DISTANCIA_ENDERECO_ESQUERDA);
     return ok;
@@ -134,8 +129,7 @@ static bool ler_sensor(Sensor &sensor, uint16_t &distancia) {
 }
 
 void distancia_ler(Distancias &distancias) {
-    ler_sensor(sensor_frente_dir, distancias.frente_dir);
-    ler_sensor(sensor_frente_esq, distancias.frente_esq);
+    ler_sensor(sensor_frente, distancias.frente);
     ler_sensor(sensor_esquerda, distancias.esquerda);
     ler_sensor(sensor_direita, distancias.direita);
 }

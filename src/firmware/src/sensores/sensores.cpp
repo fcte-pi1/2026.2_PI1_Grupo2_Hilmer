@@ -11,12 +11,10 @@
 // Modo rápido do I2C: todos os dispositivos do barramento suportam (doc 4.3, seção 4.1).
 constexpr uint32_t I2C_FREQUENCIA_HZ = 400000;
 
-static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE_DIR, Pinos::XSHUT_FRENTE_ESQ,
-                                               Pinos::XSHUT_ESQUERDA};
+static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
 // Começa como inválida até cada sensor entregar a primeira medida.
-static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA,
-                                DISTANCIA_INVALIDA};
+static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA};
 
 void sensores_iniciar() {
     Wire.begin(Pinos::I2C_SDA, Pinos::I2C_SCL, I2C_FREQUENCIA_HZ);
@@ -27,7 +25,7 @@ void sensores_iniciar() {
 
     // O robô precisa estar parado durante a calibração do giroscópio (cerca de 1 s).
     if (!imu_iniciar(Wire)) {
-        Serial.println("Erro: BMI088 não respondeu");
+        Serial.println("Erro: MPU6050 não respondeu");
     } else if (!imu_calibrar()) {
         Serial.println("Aviso: robô se mexeu na calibração do giroscópio, offset não medido");
     }
@@ -42,8 +40,7 @@ void sensores_ler(LeituraSensores &leitura) {
     static LeituraSensores ultima = {};
 
     distancia_ler(distancias);
-    ultima.distancia_frente_dir = distancias.frente_dir;
-    ultima.distancia_frente_esq = distancias.frente_esq;
+    ultima.distancia_frente = distancias.frente;
     ultima.distancia_esquerda = distancias.esquerda;
     ultima.distancia_direita = distancias.direita;
 
