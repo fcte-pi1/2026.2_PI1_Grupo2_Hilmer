@@ -29,3 +29,7 @@ cp .env.example .env.local
 npm install
 npm run dev
 ```
+### Testes
+
+    npm test                # roda toda a suíte de testes
+    npm run test:coverage   # roda com relatório de cobertura (pasta coverage/)
