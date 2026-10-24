@@ -107,6 +107,14 @@ export class TelemetryValidationService {
     }
 
     // 3. Controle de Sequência (seq)
+    // Se for o início de uma nova corrida ou calibração, reseta o rastreador de sequência do robô
+    if (dtoInstance.type === 'event') {
+      const eventName = (dtoInstance as EventPayloadDto).event;
+      if (eventName === 'RUN_START' || eventName === 'CALIBRATION_DONE') {
+        this.sequenceTracker.reset(dtoInstance.robot_id);
+      }
+    }
+
     const seqResult = this.sequenceTracker.processSequence(
       dtoInstance.robot_id,
       dtoInstance.seq,

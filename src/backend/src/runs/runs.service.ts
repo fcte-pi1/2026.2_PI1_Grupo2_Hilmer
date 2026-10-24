@@ -100,6 +100,10 @@ export class RunsService {
     const robotKey = options.robotId ?? 'default';
     let corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
 
+    if (corridaId && this.activeRuns.get(robotKey) === corridaId) {
+      this.activeRuns.delete(robotKey);
+    }
+
     try {
       if (!corridaId) {
         // Tenta buscar a última corrida 'EM_ANDAMENTO' no banco
@@ -114,6 +118,21 @@ export class RunsService {
           return null;
         }
         corridaId = lastOpen.id;
+      }
+
+      // Se a corrida já foi marcada como FINALIZADA ou CONCLUIDA, não sobrescreve com ABORTADA
+      const existing = await this.prisma.corrida.findUnique({
+        where: { id: corridaId },
+        select: { status: true },
+      });
+      if (
+        existing &&
+        (existing.status === 'FINALIZADA' || existing.status === 'CONCLUIDA')
+      ) {
+        this.logger.debug(
+          '[RunsService] Corrida ' + corridaId + ' já finalizada com sucesso (' + existing.status + ').',
+        );
+        return null;
       }
 
       const status = options.goalReached ? 'FINALIZADA' : 'ABORTADA';
