@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Corrida, Telemetria } from '@prisma/client';
+import { Corrida, Prisma, Telemetria } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   EventPayloadDto,
@@ -263,12 +263,51 @@ export class RunsService {
       where,
       include: {
         labirinto: true,
-        _count: { select: { telemetrias: true } },
+        telemetrias: {
+          select: { sensores: true },
+          orderBy: { timestamp: 'asc' },
+        },
       },
       orderBy: { iniciadaEm: 'desc' },
     });
 
-    return runs.map((run) => this.mapRunResponse(run));
+    return runs.map(({ telemetrias, ...run }) => ({
+      ...this.mapRunResponse(run),
+      ...this.calcularMetricas(telemetrias),
+    }));
+  }
+
+  /**
+   * Agrega as telemetrias de uma corrida: velocidade média (speed_mm_s
+   * convertida para m/s) e bateria da primeira e da última amostra.
+   */
+  private calcularMetricas(telemetrias: { sensores: Prisma.JsonValue }[]) {
+    const sensores = telemetrias.map(
+      (t) =>
+        (t.sensores ?? {}) as { speed_mm_s?: number; battery_pct?: number },
+    );
+    const velocidades = sensores
+      .map((s) => s.speed_mm_s)
+      .filter((v): v is number => typeof v === 'number');
+    const baterias = sensores
+      .map((s) => s.battery_pct)
+      .filter((b): b is number => typeof b === 'number');
+
+    const velocidadeMedia = velocidades.length
+      ? Number(
+          (
+            velocidades.reduce((soma, v) => soma + v, 0) /
+            velocidades.length /
+            1000
+          ).toFixed(2),
+        )
+      : 0;
+
+    return {
+      velocidadeMedia,
+      bateriaInicial: baterias.length ? baterias[0] : null,
+      bateriaFinal: baterias.length ? baterias[baterias.length - 1] : null,
+    };
   }
 
   /**

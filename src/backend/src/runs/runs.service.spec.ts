@@ -230,6 +230,68 @@ describe('RunsService', () => {
     });
   });
 
+  describe('findAll', () => {
+    const corridaComTelemetrias = {
+      ...mockCorrida,
+      status: 'FINALIZADA',
+      finalizadaEm: new Date('2026-10-17T12:00:30Z'),
+      labirinto: { id: 'lab-2', dimensao: '8x4' },
+      labirintoId: 'lab-2',
+      telemetrias: [
+        { sensores: { speed_mm_s: 200, battery_pct: 98 } },
+        { sensores: { speed_mm_s: 400, battery_pct: 96 } },
+        { sensores: { speed_mm_s: 300, battery_pct: 95 } },
+      ],
+    };
+
+    it('deve calcular velocidade média e bateria a partir das telemetrias', async () => {
+      prisma.corrida.findMany.mockResolvedValue([corridaComTelemetrias]);
+
+      const [run] = await service.findAll();
+
+      expect(run).toEqual({
+        id: 'run-1',
+        labirintoId: 'lab-2',
+        labirinto: '8x4',
+        status: 'FINALIZADA',
+        iniciadaEm: corridaComTelemetrias.iniciadaEm,
+        finalizadaEm: corridaComTelemetrias.finalizadaEm,
+        duracaoSegundos: 30,
+        velocidadeMedia: 0.3,
+        bateriaInicial: 98,
+        bateriaFinal: 95,
+      });
+    });
+
+    it('deve devolver métricas vazias para corrida sem telemetria', async () => {
+      prisma.corrida.findMany.mockResolvedValue([
+        { ...corridaComTelemetrias, telemetrias: [] },
+      ]);
+
+      const [run] = await service.findAll();
+
+      expect(run).toMatchObject({
+        velocidadeMedia: 0,
+        bateriaInicial: null,
+        bateriaFinal: null,
+      });
+    });
+
+    it('deve filtrar por dimensão ou ID do labirinto', async () => {
+      prisma.corrida.findMany.mockResolvedValue([]);
+
+      await service.findAll('8x4');
+
+      expect(prisma.corrida.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [{ labirintoId: '8x4' }, { labirinto: { dimensao: '8x4' } }],
+          },
+        }),
+      );
+    });
+  });
+
   describe('Event Listeners', () => {
     it('deve iniciar corrida ao receber RUN_START', async () => {
       const spy = jest.spyOn(service, 'startRun');
