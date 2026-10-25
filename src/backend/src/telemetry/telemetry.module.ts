@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConnectionMonitorService } from './services/connection-monitor.service';
 import { SequenceTrackerService } from './services/sequence-tracker.service';
+import { TelemetryBroadcastService } from './services/telemetry-broadcast.service';
 import { TelemetryIngestService } from './services/telemetry-ingest.service';
 import { TelemetryValidationService } from './services/telemetry-validation.service';
 import { TelemetryEventsLogger } from './telemetry-events.logger';
@@ -17,12 +18,14 @@ const debugProviders =
     TelemetryValidationService,
     ConnectionMonitorService, // watchdog (RNF18) e taxa em Hz (RNF15)
     TelemetryIngestService, // servidor ws em /ingest, porta 3001
+    TelemetryBroadcastService,
     ...debugProviders,
   ],
   exports: [
     SequenceTrackerService,
     TelemetryValidationService,
     ConnectionMonitorService,
+    TelemetryBroadcastService,
   ],
 })
 export class TelemetryModule {}

@@ -10,16 +10,36 @@ import { PainelResultados } from '@/components/Results';
 import { Speed } from '@/components/Speed';
 import { Time } from '@/components/Time';
 import { HeadingDirection, MazeDimension, mazeMocks } from '@/lib/mock-data';
+import { useTelemetry } from '@/context/TelemetryContext';
 
 export default function Monitoramento() {
   const [selectedMaze, setSelectedMaze] = useState<MazeDimension>('4x4');
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
 
+  const {
+    isLiveActive,
+    livePos,
+    liveHeading,
+    livePath,
+    liveSpeed,
+    liveTime,
+    liveBatteryConsumo,
+    liveGoalReached,
+    resetLiveState,
+  } = useTelemetry();
+
   const baseData = mazeMocks[selectedMaze];
   const maxSteps = baseData.path.length;
 
-  // Lógica de simulação passo a passo
+  // Se a telemetria ao vivo começar, desativa a simulação manual
+  useEffect(() => {
+    if (isLiveActive) {
+      setIsSimulating(false);
+    }
+  }, [isLiveActive]);
+
+  // Simulação manual local (fallback)
   useEffect(() => {
     if (!isSimulating) return;
 
@@ -36,12 +56,19 @@ export default function Monitoramento() {
     return () => clearInterval(interval);
   }, [isSimulating, maxSteps]);
 
-  // Se estiver simulando, calcula o trajeto parcial e posição intermediária
   const effectiveStep = isSimulating ? currentStep : maxSteps - 1;
-  const currentPath = baseData.path.slice(0, effectiveStep + 1);
-  const currentPos = baseData.path[effectiveStep] ?? baseData.path[0];
+  const currentPath = isLiveActive
+    ? livePath
+    : isSimulating
+      ? baseData.path.slice(0, effectiveStep + 1)
+      : baseData.path;
 
-  // Determina orientação com base no vetor de movimento entre o passo anterior e atual
+  const currentPos = isLiveActive
+    ? livePos
+    : isSimulating
+      ? baseData.path[effectiveStep] ?? baseData.path[0]
+      : baseData.path[maxSteps - 1] ?? baseData.path[0];
+
   const getSimulatedHeading = (stepIdx: number): HeadingDirection => {
     if (stepIdx === 0) return 'N';
     const prev = baseData.path[stepIdx - 1];
@@ -54,33 +81,45 @@ export default function Monitoramento() {
     return baseData.robotPosition.heading;
   };
 
-  const currentHeading = isSimulating
-    ? getSimulatedHeading(effectiveStep)
-    : baseData.robotPosition.heading;
+  const currentHeading = isLiveActive
+    ? liveHeading
+    : isSimulating
+      ? getSimulatedHeading(effectiveStep)
+      : baseData.robotPosition.heading;
 
-  const currentSpeed = isSimulating
-    ? Math.round((2.0 + (effectiveStep / maxSteps) * 1.5) * 10) / 10
-    : baseData.speed;
+  const currentSpeed = isLiveActive
+    ? liveSpeed
+    : isSimulating
+      ? Math.round((2.0 + (effectiveStep / maxSteps) * 1.5) * 10) / 10
+      : baseData.speed;
 
-  const currentTime = isSimulating
-    ? Math.round((effectiveStep / maxSteps) * baseData.completionTime)
-    : baseData.completionTime;
+  const currentTime = isLiveActive
+    ? liveTime
+    : isSimulating
+      ? Math.round((effectiveStep / maxSteps) * baseData.completionTime)
+      : baseData.completionTime;
 
-  const currentBatteryConsumo = isSimulating
-    ? Math.round((effectiveStep / maxSteps) * baseData.batteryConsumption)
-    : baseData.batteryConsumption;
+  const currentBatteryConsumo = isLiveActive
+    ? liveBatteryConsumo
+    : isSimulating
+      ? Math.round((effectiveStep / maxSteps) * baseData.batteryConsumption)
+      : baseData.batteryConsumption;
 
-  const currentChallengeCompleted = isSimulating
-    ? effectiveStep === maxSteps - 1
-    : baseData.challengeCompleted;
+  const currentChallengeCompleted = isLiveActive
+    ? liveGoalReached
+    : isSimulating
+      ? effectiveStep === maxSteps - 1
+      : baseData.challengeCompleted;
 
   const handleSelectDimension = (dim: MazeDimension) => {
     setSelectedMaze(dim);
     setIsSimulating(false);
+    resetLiveState();
     setCurrentStep(0);
   };
 
   const handleToggleSimulation = () => {
+    resetLiveState();
     if (isSimulating) {
       setIsSimulating(false);
     } else {
@@ -91,7 +130,6 @@ export default function Monitoramento() {
 
   return (
     <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
-      {/* 1. Painel de Legenda & Seleção de Labirinto */}
       <MazeLegend
         currentDimension={selectedMaze}
         onSelectDimension={handleSelectDimension}
@@ -99,7 +137,6 @@ export default function Monitoramento() {
         onToggleSimulation={handleToggleSimulation}
       />
 
-      {/* 2. Visualização Gráfica do Labirinto em SVG */}
       <MazeMap
         dimension={selectedMaze}
         robotPosition={{
@@ -111,7 +148,6 @@ export default function Monitoramento() {
         discoveredWalls={baseData.discoveredWalls}
       />
 
-      {/* 3. Painel Lateral de Resultados da Telemetria */}
       <PainelResultados>
         <ChallengeFlag completed={currentChallengeCompleted} />
         <Battery consumo={currentBatteryConsumo} />
