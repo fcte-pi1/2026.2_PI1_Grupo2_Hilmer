@@ -1,7 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { HistoricoDashboard } from '@/components/historico/HistoricoDashboard';
-import type { CorridaResumo } from '@/lib/corridas';
+import type { CorridaResumo, RecordeLabirinto } from '@/lib/corridas';
 
 // Os gráficos têm teste próprio; aqui só interessa quantos pontos recebem.
 jest.mock('@/components/historico/GraficoCorridas', () => {
@@ -77,8 +76,34 @@ const corridas: CorridaResumo[] = [
   }),
 ];
 
+// Formato de GET /runs/best: o menor tempo finalizado de cada labirinto.
+const recordes: RecordeLabirinto[] = [
+  {
+    labirinto: '4x4',
+    labirintoId: 'lab-4x4',
+    corridaId: 'c2',
+    status: 'FINALIZADA',
+    tempoSegundos: 80,
+    iniciadaEm: '2026-10-02T12:00:00Z',
+    finalizadaEm: '2026-10-02T12:01:20Z',
+  },
+  {
+    labirinto: '8x4',
+    labirintoId: 'lab-8x4',
+    corridaId: 'c4',
+    status: 'FINALIZADA',
+    tempoSegundos: 150,
+    iniciadaEm: '2026-10-04T12:00:00Z',
+    finalizadaEm: '2026-10-04T12:02:30Z',
+  },
+];
+
+// O backend devolve as corridas já filtradas (GET /runs?mazeId=).
+const doLabirinto = (labirinto: string) =>
+  corridas.filter((c) => c.labirinto === labirinto);
+
 // O rótulo também aparece em títulos de gráfico/tabela; o indicador é o <p>.
-function indicador(rotulo: string) {
+function indicador(rotulo: string | RegExp) {
   const p = screen
     .getAllByText(rotulo)
     .find((el) => el.tagName === 'P') as HTMLElement;
@@ -91,10 +116,9 @@ function linhasDaTabela() {
 
 describe('HistoricoDashboard: indicadores', () => {
   it('calcula os indicadores de todas as corridas', () => {
-    render(<HistoricoDashboard corridas={corridas} />);
+    render(<HistoricoDashboard corridas={corridas} recordes={recordes} />);
     expect(indicador('Corridas')).toHaveTextContent('5');
     expect(indicador('Taxa de sucesso')).toHaveTextContent('75%');
-    expect(indicador('Melhor tempo')).toHaveTextContent('01:20');
     expect(indicador('Velocidade média')).toHaveTextContent('0.35 m/s');
     expect(indicador('Consumo médio de bateria')).toHaveTextContent('9.5%');
   });
@@ -103,13 +127,12 @@ describe('HistoricoDashboard: indicadores', () => {
     render(<HistoricoDashboard corridas={[]} />);
     expect(indicador('Corridas')).toHaveTextContent('0');
     expect(indicador('Taxa de sucesso')).toHaveTextContent('—');
-    expect(indicador('Melhor tempo')).toHaveTextContent('—');
+    expect(indicador('Recorde')).toHaveTextContent('—');
     expect(indicador('Velocidade média')).toHaveTextContent('—');
     expect(indicador('Consumo médio de bateria')).toHaveTextContent('—');
-    expect(linhasDaTabela()).toHaveLength(0);
   });
 
-  it('ignora corridas em andamento nas médias e no melhor tempo', () => {
+  it('ignora corridas em andamento nas médias e na taxa de sucesso', () => {
     render(
       <HistoricoDashboard
         corridas={[
@@ -123,20 +146,68 @@ describe('HistoricoDashboard: indicadores', () => {
       />,
     );
     expect(indicador('Corridas')).toHaveTextContent('1');
-    expect(indicador('Melhor tempo')).toHaveTextContent('—');
     expect(indicador('Taxa de sucesso')).toHaveTextContent('—');
+    expect(indicador('Velocidade média')).toHaveTextContent('—');
   });
 
-  it('não conta corrida abortada como melhor tempo', () => {
+  it('conta CONCLUIDA como sucesso e FALHA como insucesso', () => {
     render(
       <HistoricoDashboard
         corridas={[
-          corrida({ id: 'a', duracaoSegundos: 100 }),
-          corrida({ id: 'b', status: 'ABORTADA', duracaoSegundos: 10 }),
+          corrida({ id: 'a', status: 'CONCLUIDA' }),
+          corrida({ id: 'b', status: 'FALHA' }),
         ]}
       />,
     );
-    expect(indicador('Melhor tempo')).toHaveTextContent('01:40');
+    expect(indicador('Taxa de sucesso')).toHaveTextContent('50%');
+  });
+
+  it('ignora no consumo médio as corridas sem telemetria de bateria', () => {
+    render(
+      <HistoricoDashboard
+        corridas={[
+          corrida({ id: 'a', bateriaInicial: 100, bateriaFinal: 90 }),
+          corrida({ id: 'b', bateriaInicial: null, bateriaFinal: null }),
+        ]}
+      />,
+    );
+    expect(indicador('Consumo médio de bateria')).toHaveTextContent('10.0%');
+  });
+});
+
+describe('HistoricoDashboard: recorde', () => {
+  it('em Todos, mostra o menor tempo entre os recordes e o labirinto dele', () => {
+    render(<HistoricoDashboard corridas={corridas} recordes={recordes} />);
+    expect(indicador('Recorde (4x4)')).toHaveTextContent('01:20');
+  });
+
+  it('com filtro, mostra o recorde do labirinto filtrado', () => {
+    render(
+      <HistoricoDashboard
+        corridas={doLabirinto('8x4')}
+        recordes={recordes}
+        filtro="8x4"
+      />,
+    );
+    expect(indicador('Recorde')).toHaveTextContent('02:30');
+  });
+
+  it('mostra traço quando o labirinto filtrado não tem recorde', () => {
+    render(
+      <HistoricoDashboard corridas={[]} recordes={recordes} filtro="12x4" />,
+    );
+    expect(indicador('Recorde')).toHaveTextContent('—');
+  });
+
+  it('usa o recorde da API, e não o menor tempo das corridas exibidas', () => {
+    render(
+      <HistoricoDashboard
+        corridas={[corrida({ id: 'a', duracaoSegundos: 10 })]}
+        recordes={[{ ...recordes[0], tempoSegundos: 65 }]}
+        filtro="4x4"
+      />,
+    );
+    expect(indicador('Recorde')).toHaveTextContent('01:05');
   });
 });
 
@@ -172,6 +243,49 @@ describe('HistoricoDashboard: tabela', () => {
     render(<HistoricoDashboard corridas={corridas} />);
     expect(linhasDaTabela()[3]).toHaveTextContent('Finalizada');
   });
+
+  it('mostra os rótulos dos status usados pelo seed', () => {
+    render(
+      <HistoricoDashboard
+        corridas={[
+          corrida({ id: 'a', status: 'CONCLUIDA' }),
+          corrida({
+            id: 'b',
+            status: 'FALHA',
+            iniciadaEm: '2026-10-02T12:00:00Z',
+          }),
+        ]}
+      />,
+    );
+    const [falha, concluida] = linhasDaTabela();
+    expect(falha).toHaveTextContent('Falha');
+    expect(concluida).toHaveTextContent('Concluída');
+  });
+
+  it('mostra traço na bateria de corrida sem telemetria', () => {
+    render(
+      <HistoricoDashboard
+        corridas={[
+          corrida({ id: 'a', bateriaInicial: null, bateriaFinal: null }),
+        ]}
+      />,
+    );
+    expect(linhasDaTabela()[0]).not.toHaveTextContent('%');
+  });
+
+  it('avisa quando não há corridas', () => {
+    render(<HistoricoDashboard corridas={[]} />);
+    const linhas = linhasDaTabela();
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0]).toHaveTextContent('Nenhuma corrida registrada.');
+  });
+
+  it('avisa quando o labirinto filtrado não tem corridas', () => {
+    render(<HistoricoDashboard corridas={[]} filtro="12x4" />);
+    expect(linhasDaTabela()[0]).toHaveTextContent(
+      'Nenhuma corrida registrada para o labirinto 12x4.',
+    );
+  });
 });
 
 describe('HistoricoDashboard: gráficos', () => {
@@ -193,68 +307,68 @@ describe('HistoricoDashboard: gráficos', () => {
 });
 
 describe('HistoricoDashboard: filtro por labirinto', () => {
+  it('cada filtro é um link que refaz a consulta pela URL', () => {
+    render(<HistoricoDashboard corridas={corridas} />);
+    expect(screen.getByRole('link', { name: 'Todos' })).toHaveAttribute(
+      'href',
+      '/historico',
+    );
+    for (const labirinto of ['4x4', '8x4', '12x4']) {
+      expect(screen.getByRole('link', { name: labirinto })).toHaveAttribute(
+        'href',
+        `/historico?labirinto=${labirinto}`,
+      );
+    }
+  });
+
   it('começa em Todos', () => {
     render(<HistoricoDashboard corridas={corridas} />);
-    expect(screen.getByRole('button', { name: 'Todos' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(screen.getByRole('link', { name: 'Todos' })).toHaveAttribute(
+      'aria-current',
+      'page',
     );
-    expect(screen.getByRole('button', { name: '4x4' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
+    expect(screen.getByRole('link', { name: '4x4' })).not.toHaveAttribute(
+      'aria-current',
     );
   });
 
-  it('filtra por 4x4 e recalcula os indicadores', async () => {
-    const user = userEvent.setup();
-    render(<HistoricoDashboard corridas={corridas} />);
+  it('marca o filtro ativo e calcula os indicadores das corridas recebidas', () => {
+    render(
+      <HistoricoDashboard
+        corridas={doLabirinto('4x4')}
+        recordes={recordes}
+        filtro="4x4"
+      />,
+    );
 
-    await user.click(screen.getByRole('button', { name: '4x4' }));
-
-    expect(screen.getByRole('button', { name: '4x4' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(screen.getByRole('link', { name: '4x4' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Todos' })).not.toHaveAttribute(
+      'aria-current',
     );
     expect(linhasDaTabela()).toHaveLength(3);
     expect(indicador('Corridas')).toHaveTextContent('3');
     expect(indicador('Taxa de sucesso')).toHaveTextContent('67%');
-    expect(indicador('Melhor tempo')).toHaveTextContent('01:20');
+    expect(indicador('Recorde')).toHaveTextContent('01:20');
     expect(indicador('Velocidade média')).toHaveTextContent('0.30 m/s');
     expect(indicador('Consumo médio de bateria')).toHaveTextContent('6.0%');
   });
 
-  it('filtra por 8x4 mantendo a numeração do histórico completo', async () => {
-    const user = userEvent.setup();
-    render(<HistoricoDashboard corridas={corridas} />);
-
-    await user.click(screen.getByRole('button', { name: '8x4' }));
+  it('numera as corridas dentro do labirinto filtrado', () => {
+    render(
+      <HistoricoDashboard
+        corridas={doLabirinto('8x4')}
+        recordes={recordes}
+        filtro="8x4"
+      />,
+    );
 
     const linhas = linhasDaTabela();
     expect(linhas).toHaveLength(2);
-    expect(linhas[0]).toHaveTextContent('#5');
-    expect(linhas[1]).toHaveTextContent('#4');
-    expect(indicador('Melhor tempo')).toHaveTextContent('02:30');
+    expect(linhas[0]).toHaveTextContent('#2');
+    expect(linhas[1]).toHaveTextContent('#1');
     expect(indicador('Taxa de sucesso')).toHaveTextContent('100%');
-  });
-
-  it('mostra tabela vazia para um labirinto sem corridas', async () => {
-    const user = userEvent.setup();
-    render(<HistoricoDashboard corridas={corridas} />);
-
-    await user.click(screen.getByRole('button', { name: '12x4' }));
-
-    expect(linhasDaTabela()).toHaveLength(0);
-    expect(indicador('Corridas')).toHaveTextContent('0');
-    expect(indicador('Melhor tempo')).toHaveTextContent('—');
-  });
-
-  it('volta a mostrar tudo ao clicar em Todos', async () => {
-    const user = userEvent.setup();
-    render(<HistoricoDashboard corridas={corridas} />);
-
-    await user.click(screen.getByRole('button', { name: '12x4' }));
-    await user.click(screen.getByRole('button', { name: 'Todos' }));
-
-    expect(linhasDaTabela()).toHaveLength(5);
   });
 });

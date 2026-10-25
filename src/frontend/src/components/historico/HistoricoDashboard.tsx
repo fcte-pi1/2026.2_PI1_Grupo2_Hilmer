@@ -31,14 +31,14 @@ interface HistoricoDashboardProps {
   /** Corridas já filtradas pelo backend (GET /runs?mazeId=). */
   corridas: CorridaResumo[];
   /** Recorde de cada labirinto (GET /runs/best). */
-  recordes: RecordeLabirinto[];
-  filtro: Filtro;
+  recordes?: RecordeLabirinto[];
+  filtro?: Filtro;
 }
 
 export function HistoricoDashboard({
   corridas,
-  recordes,
-  filtro,
+  recordes = [],
+  filtro = 'TODOS',
 }: HistoricoDashboardProps) {
   // Numera pela ordem cronológica das corridas do filtro atual.
   const visiveis = [...corridas]
