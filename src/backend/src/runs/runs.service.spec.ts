@@ -310,6 +310,7 @@ describe('RunsService', () => {
       await service.handleRunStarted(envelope);
       expect(spy).toHaveBeenCalledWith({
         robotId: 'ROBOT_EV',
+        dimensaoLabirinto: undefined,
         iniciadaEm: envelope.recebido_em,
       });
     });

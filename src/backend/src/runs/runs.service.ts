@@ -434,6 +434,7 @@ export class RunsService {
   ): Promise<void> {
     await this.startRun({
       robotId: envelope.data.robot_id,
+      dimensaoLabirinto: envelope.data.maze,
       iniciadaEm: envelope.recebido_em,
     });
   }
