@@ -6,13 +6,10 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { OnEvent } from '@nestjs/event-emitter';
-import type { IncomingMessage } from 'http';
+import type { IncomingMessage, Server } from 'http';
 import type { Duplex } from 'stream';
 import { WebSocket, WebSocketServer } from 'ws';
-import {
-  EventPayloadDto,
-  TelemetryPayloadDto,
-} from '../dto/telemetry.dto';
+import { EventPayloadDto, TelemetryPayloadDto } from '../dto/telemetry.dto';
 import {
   IngestedMessageEnvelope,
   TELEMETRY_EVENTS,
@@ -29,7 +26,8 @@ export class TelemetryBroadcastService
   constructor(private readonly adapterHost: HttpAdapterHost) {}
 
   onApplicationBootstrap() {
-    const server = this.adapterHost.httpAdapter?.getHttpServer();
+    const server: Server | undefined =
+      this.adapterHost.httpAdapter?.getHttpServer();
 
     if (!server) {
       this.logger.error(
@@ -41,15 +39,18 @@ export class TelemetryBroadcastService
     // Cria o WSS em modo 'noServer' para gerenciar manualmente o handshake de upgrade
     this.wss = new WebSocketServer({ noServer: true });
 
-    server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-      const url = req.url || '';
-      // Garante que só intercepta requisições direcionadas para a rota /live
-      if (url === '/live' || url.startsWith('/live?')) {
-        this.wss?.handleUpgrade(req, socket, head, (ws) => {
-          this.wss?.emit('connection', ws, req);
-        });
-      }
-    });
+    server.on(
+      'upgrade',
+      (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+        const url = req.url || '';
+        // Garante que só intercepta requisições direcionadas para a rota /live
+        if (url === '/live' || url.startsWith('/live?')) {
+          this.wss?.handleUpgrade(req, socket, head, (ws) => {
+            this.wss?.emit('connection', ws, req);
+          });
+        }
+      },
+    );
 
     this.wss.on('connection', (ws: WebSocket) => {
       this.clients.add(ws);
@@ -70,7 +71,9 @@ export class TelemetryBroadcastService
       });
     });
 
-    this.logger.log('[Broadcast] Listener de upgrade WebSocket em /live ativado com sucesso.');
+    this.logger.log(
+      '[Broadcast] Listener de upgrade WebSocket em /live ativado com sucesso.',
+    );
   }
 
   onModuleDestroy() {
