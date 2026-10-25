@@ -137,7 +137,6 @@ export class EventPayloadDto extends BaseMessageDto {
   @Type(() => PositionDto)
   pos?: PositionDto;
 
-  /** Dimensão do labirinto, enviada no RUN_START. */
   @IsOptional()
   @IsIn(['4x4', '8x4', '12x4'])
   maze?: '4x4' | '8x4' | '12x4';

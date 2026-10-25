@@ -1,16 +1,15 @@
-// Sensores do barramento I2C: 4x VL53L0X, BMI088 e INA219.
+// Sensores do barramento I2C: 3x VL53L0X, MPU6050 e INA219.
 #pragma once
 
 #include <cstdint>
 
 struct LeituraSensores {
-    // Distância até a parede, em mm (VL53L0X U7 a U10).
-    uint16_t distancia_frente_dir;
-    uint16_t distancia_frente_esq;
+    // Distância até a parede, em mm (VL53L0X U7, U9 e U10).
+    uint16_t distancia_frente;
     uint16_t distancia_esquerda;
     uint16_t distancia_direita;
 
-    // Velocidade angular no eixo Z, em graus/s (giroscópio do BMI088).
+    // Velocidade angular no eixo Z, em graus/s (giroscópio do MPU6050).
     float giro_z;
 
     // Bateria (INA219).

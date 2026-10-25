@@ -2,16 +2,16 @@
 //
 // Gravar:  pio run -e exemplo_distancia -t upload && pio device monitor
 //
-// Inicia os quatro sensores (troca de endereço pelos XSHUT) e mostra as distâncias.
+// Inicia os três sensores (troca de endereço pelos XSHUT) e mostra as distâncias.
 // Conferir:
-//   - o scan do I2C depois da inicialização mostra 0x30 a 0x33 (os quatro
-//     sensores), além do INA219 (0x40) e do BMI088 (0x18 e 0x68);
+//   - o scan do I2C depois da inicialização mostra 0x30 a 0x32 (os três
+//     sensores), além do INA219 (0x40) e do MPU6050 (0x68);
 //   - com uma parede a distâncias conhecidas (por exemplo 50, 100 e 180 mm),
 //     anotar a média e o desvio de 50 leituras de cada sensor ("m" no monitor);
-//   - o tempo de distancia_ler() com os quatro sensores, que define o período
+//   - o tempo de distancia_ler() com os três sensores, que define o período
 //     da tarefa sensores.
 // Apertar o botão EN da placa (reset sem desligar a alimentação) deve iniciar
-// os quatro sensores de novo sem erro.
+// os três sensores de novo sem erro.
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -24,11 +24,26 @@ constexpr uint32_t PERIODO_LEITURA_MS = 20;  // período atual da tarefa sensore
 constexpr uint32_t PERIODO_IMPRESSAO_MS = 250;
 constexpr int AMOSTRAS_MEDIA = 50;
 
-static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE_DIR, Pinos::XSHUT_FRENTE_ESQ,
-                                               Pinos::XSHUT_ESQUERDA};
+static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
-static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA,
-                                DISTANCIA_INVALIDA};
+static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA};
+
+// Nível das linhas antes de iniciar o I2C. Com os módulos ligados e alimentados, os
+// pull-ups deles deixam SDA e SCL em 1 mesmo sem o pull-up interno.
+//   sem pull-up 0, com pull-up 1 -> módulos sem alimentação ou fio solto;
+//   0 nos dois casos            -> linha em curto com o GND ou módulo travando.
+static void verificar_linhas() {
+    pinMode(Pinos::I2C_SDA, INPUT);
+    pinMode(Pinos::I2C_SCL, INPUT);
+    delay(5);
+    int sda_solto = digitalRead(Pinos::I2C_SDA);
+    int scl_solto = digitalRead(Pinos::I2C_SCL);
+    pinMode(Pinos::I2C_SDA, INPUT_PULLUP);
+    pinMode(Pinos::I2C_SCL, INPUT_PULLUP);
+    delay(5);
+    Serial.printf("Linhas sem pull-up interno: SDA=%d SCL=%d | com pull-up: SDA=%d SCL=%d\n",
+                  sda_solto, scl_solto, digitalRead(Pinos::I2C_SDA), digitalRead(Pinos::I2C_SCL));
+}
 
 static void escanear_i2c() {
     Serial.print("Dispositivos no I2C:");
@@ -43,18 +58,17 @@ static void escanear_i2c() {
 
 // Média e desvio padrão de AMOSTRAS_MEDIA medidas novas de cada sensor.
 static void medir_estatisticas() {
-    const char *nomes[4] = {"frente_dir", "frente_esq", "esquerda", "direita"};
-    float soma[4] = {};
-    float soma_quadrados[4] = {};
-    int validas[4] = {};
+    const char *nomes[3] = {"frente", "esquerda", "direita"};
+    float soma[3] = {};
+    float soma_quadrados[3] = {};
+    int validas[3] = {};
 
     for (int i = 0; i < AMOSTRAS_MEDIA; i++) {
         delay(PERIODO_LEITURA_MS + 5);  // garante uma medida nova de cada sensor
-        Distancias d = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA,
-                        DISTANCIA_INVALIDA};
+        Distancias d = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA};
         distancia_ler(d);
-        uint16_t valores[4] = {d.frente_dir, d.frente_esq, d.esquerda, d.direita};
-        for (int s = 0; s < 4; s++) {
+        uint16_t valores[3] = {d.frente, d.esquerda, d.direita};
+        for (int s = 0; s < 3; s++) {
             if (valores[s] != DISTANCIA_INVALIDA) {
                 soma[s] += valores[s];
                 soma_quadrados[s] += (float)valores[s] * valores[s];
@@ -63,7 +77,7 @@ static void medir_estatisticas() {
         }
     }
 
-    for (int s = 0; s < 4; s++) {
+    for (int s = 0; s < 3; s++) {
         if (validas[s] == 0) {
             Serial.printf("%-10s: sem leituras válidas\n", nomes[s]);
             continue;
@@ -77,12 +91,15 @@ static void medir_estatisticas() {
 
 void setup() {
     // Mantém a ponte H desligada.
-    pinMode(Pinos::MOTOR_STBY, OUTPUT);
-    digitalWrite(Pinos::MOTOR_STBY, LOW);
+    pinMode(Pinos::MOTOR_ESQ_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_ESQ_PWM, LOW);
+    pinMode(Pinos::MOTOR_DIR_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_DIR_PWM, LOW);
 
     Serial.begin(115200);
     delay(2000);
 
+    verificar_linhas();
     Wire.begin(Pinos::I2C_SDA, Pinos::I2C_SCL, I2C_FREQUENCIA_HZ);
     uint32_t inicio = millis();
     bool ok = distancia_iniciar(Wire, PINOS_DISTANCIA);
@@ -107,11 +124,10 @@ void loop() {
 
     if (millis() - ultima_impressao >= PERIODO_IMPRESSAO_MS) {
         ultima_impressao = millis();
-        Serial.printf("frente_dir: %5u  frente_esq: %5u  esquerda: %5u  direita: %5u mm"
+        Serial.printf("frente: %5u  esquerda: %5u  direita: %5u mm"
                       "   leitura: %4lu us (máx. %4lu us)\n",
-                      distancias.frente_dir, distancias.frente_esq, distancias.esquerda,
-                      distancias.direita, (unsigned long)tempo_us,
-                      (unsigned long)tempo_maximo_us);
+                      distancias.frente, distancias.esquerda, distancias.direita,
+                      (unsigned long)tempo_us, (unsigned long)tempo_maximo_us);
     }
 
     delay(PERIODO_LEITURA_MS);

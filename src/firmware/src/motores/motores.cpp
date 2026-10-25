@@ -2,15 +2,15 @@
 
 #include <Arduino.h>
 
-// 20 kHz fica acima da faixa audível, e o TB6612FNG aceita até 100 kHz.
-// Com o APB de 80 MHz, 20 kHz permite até 11 bits; 10 bits dão 1024 níveis.
-constexpr uint32_t PWM_FREQUENCIA_HZ = 20000;
+// O L298N usa transistores bipolares, que chaveiam devagar: em frequências altas o
+// motor perde torque e a ponte esquenta. 1 kHz é o valor usual para esse módulo.
+constexpr uint32_t PWM_FREQUENCIA_HZ = 1000;
 constexpr uint8_t PWM_RESOLUCAO_BITS = 10;
 constexpr uint32_t PWM_DUTY_TOTAL = (1u << PWM_RESOLUCAO_BITS) - 1;
 
 static PinosMotor motor_esquerdo;
 static PinosMotor motor_direito;
-static uint8_t stby;
+static bool habilitada = false;
 
 // Escrito por uma tarefa e lido por outra; float de 32 bits é atômico no ESP32.
 static volatile float duty_maximo = MOTOR_TENSAO_NOMINAL / MOTOR_TENSAO_BATERIA_CHEIA;
@@ -21,6 +21,13 @@ static void configurar_canal(const PinosMotor &motor) {
     digitalWrite(motor.in1, LOW);
     digitalWrite(motor.in2, LOW);
     ledcAttach(motor.pwm, PWM_FREQUENCIA_HZ, PWM_RESOLUCAO_BITS);
+    ledcWrite(motor.pwm, 0);
+}
+
+// ENA/ENB em nível baixo: o canal fica desligado e o motor gira livre.
+static void soltar(const PinosMotor &motor) {
+    digitalWrite(motor.in1, LOW);
+    digitalWrite(motor.in2, LOW);
     ledcWrite(motor.pwm, 0);
 }
 
@@ -40,45 +47,50 @@ static void aplicar_velocidade(const PinosMotor &motor, float velocidade) {
         digitalWrite(motor.in1, LOW);
         digitalWrite(motor.in2, HIGH);
     } else {
-        // IN1 = IN2 = 0: motor livre.
-        digitalWrite(motor.in1, LOW);
-        digitalWrite(motor.in2, LOW);
+        soltar(motor);
+        return;
     }
 
     float duty = fabsf(velocidade) * duty_maximo;
     ledcWrite(motor.pwm, (uint32_t)lroundf(duty * PWM_DUTY_TOTAL));
 }
 
-void motores_iniciar(const PinosMotor &esquerdo, const PinosMotor &direito, uint8_t pino_stby) {
-    // STBY primeiro: o pull-down R1 segura a ponte desligada no boot, e o pino
-    // passa a ser saída em nível baixo antes de mexer nos outros.
-    stby = pino_stby;
-    pinMode(stby, OUTPUT);
-    digitalWrite(stby, LOW);
-
+void motores_iniciar(const PinosMotor &esquerdo, const PinosMotor &direito) {
+    habilitada = false;
     motor_esquerdo = esquerdo;
     motor_direito = direito;
     configurar_canal(motor_esquerdo);
     configurar_canal(motor_direito);
 }
 
-void motores_habilitar(bool habilitada) {
-    digitalWrite(stby, habilitada ? HIGH : LOW);
+void motores_habilitar(bool ligar) {
+    habilitada = ligar;
+    if (!habilitada) {
+        soltar(motor_esquerdo);
+        soltar(motor_direito);
+    }
 }
 
 void motores_definir_velocidade(float esquerdo, float direito) {
+    if (!habilitada) {
+        return;
+    }
     aplicar_velocidade(motor_esquerdo, esquerdo);
     aplicar_velocidade(motor_direito, direito);
 }
 
 void motores_frear() {
-    // Com IN1 = IN2 = 1 o TB6612FNG curto-circuita os terminais, seja qual for o PWM.
+    if (!habilitada) {
+        return;
+    }
+    // No L298N, IN1 = IN2 = 1 com o ENA em nível alto curto-circuita os terminais
+    // do motor pelos transistores de cima, o que freia a roda.
     digitalWrite(motor_esquerdo.in1, HIGH);
     digitalWrite(motor_esquerdo.in2, HIGH);
     digitalWrite(motor_direito.in1, HIGH);
     digitalWrite(motor_direito.in2, HIGH);
-    ledcWrite(motor_esquerdo.pwm, 0);
-    ledcWrite(motor_direito.pwm, 0);
+    ledcWrite(motor_esquerdo.pwm, PWM_DUTY_TOTAL);
+    ledcWrite(motor_direito.pwm, PWM_DUTY_TOTAL);
 }
 
 void motores_definir_duty_maximo(float duty) {

@@ -99,8 +99,10 @@ static void testar() {
 
 void setup() {
     // Mantém a ponte H desligada.
-    pinMode(Pinos::MOTOR_STBY, OUTPUT);
-    digitalWrite(Pinos::MOTOR_STBY, LOW);
+    pinMode(Pinos::MOTOR_ESQ_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_ESQ_PWM, LOW);
+    pinMode(Pinos::MOTOR_DIR_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_DIR_PWM, LOW);
     pinMode(Pinos::LED_STATUS, OUTPUT);
 
     Serial.begin(115200);

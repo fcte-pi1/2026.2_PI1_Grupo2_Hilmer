@@ -2,23 +2,31 @@
 
 #include <Arduino.h>
 
-// Registradores do giroscópio do BMI088 (datasheet, seção 10).
-constexpr uint8_t REG_CHIP_ID = 0x00;
-constexpr uint8_t REG_TAXA_Z_LSB = 0x06;  // seguido do MSB em 0x07
-constexpr uint8_t REG_FAIXA = 0x0F;
-constexpr uint8_t REG_BANDA = 0x10;
-constexpr uint8_t REG_RESET = 0x14;
+// Registradores do MPU6050 (Register Map, rev. 4.2).
+constexpr uint8_t REG_DIVISOR_TAXA = 0x19;  // SMPLRT_DIV
+constexpr uint8_t REG_CONFIG = 0x1A;        // filtro passa-baixa (DLPF)
+constexpr uint8_t REG_CONFIG_GIRO = 0x1B;   // GYRO_CONFIG: faixa
+constexpr uint8_t REG_TAXA_Z_MSB = 0x47;    // GYRO_ZOUT_H, seguido do LSB em 0x48
+constexpr uint8_t REG_ENERGIA_1 = 0x6B;     // PWR_MGMT_1
+constexpr uint8_t REG_WHO_AM_I = 0x75;
 
-constexpr uint8_t CHIP_ID = 0x0F;
-constexpr uint8_t COMANDO_RESET = 0xB6;
-constexpr uint32_t TEMPO_RESET_MS = 30;
+constexpr uint8_t COMANDO_RESET = 0x80;
+constexpr uint32_t TEMPO_RESET_MS = 100;
+// Sai do modo sleep e usa o oscilador do giroscópio X como relógio, mais estável que o interno.
+constexpr uint8_t RELOGIO_GIRO_X = 0x01;
+
+// O MPU6050 original responde 0x68. Módulos com chips compatíveis (MPU6500 e
+// variações) respondem 0x70, 0x71 ou 0x72 e têm os mesmos registradores do giroscópio.
+constexpr uint8_t IDS_ACEITOS[] = {0x68, 0x70, 0x71, 0x72};
 
 // Faixa de ±1000 graus/s: cobre as curvas rápidas com folga e dá 0,03 graus/s por LSB.
-constexpr uint8_t FAIXA_1000_GRAUS = 0x01;
-constexpr float LSB_POR_GRAU = 32.768f;
+constexpr uint8_t FAIXA_1000_GRAUS = 0x10;
+constexpr float LSB_POR_GRAU = 32.8f;
 
-// 200 Hz de taxa com filtro de 23 Hz. A tarefa de sensores lê a 50 Hz.
-constexpr uint8_t BANDA_200HZ_23HZ = 0x04;
+// Filtro de 42 Hz (DLPF_CFG = 3): o giroscópio amostra a 1 kHz, e o divisor 4
+// leva a taxa a 1000 / (1 + 4) = 200 Hz. A tarefa de sensores lê a 50 Hz.
+constexpr uint8_t FILTRO_42HZ = 0x03;
+constexpr uint8_t DIVISOR_200HZ = 4;
 constexpr uint32_t PERIODO_AMOSTRA_MS = 5;
 
 // Calibração: 200 amostras a 200 Hz (1 s). Se a leitura variar mais que isso,
@@ -52,14 +60,23 @@ static bool ler_registros(uint8_t registro, uint8_t *dados, uint8_t tamanho) {
     return true;
 }
 
+static bool id_aceito(uint8_t id) {
+    for (uint8_t aceito : IDS_ACEITOS) {
+        if (id == aceito) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Taxa bruta do eixo Z, em graus/s, sem tirar o offset.
 static bool ler_taxa_bruta(float &graus_por_segundo) {
     uint8_t dados[2];
-    // Ler o LSB primeiro trava o MSB, então os dois bytes são da mesma amostra.
-    if (!ler_registros(REG_TAXA_Z_LSB, dados, 2)) {
+    // Os dois bytes são lidos na mesma transação, então são da mesma amostra.
+    if (!ler_registros(REG_TAXA_Z_MSB, dados, 2)) {
         return false;
     }
-    int16_t bruto = (int16_t)(((uint16_t)dados[1] << 8) | dados[0]);
+    int16_t bruto = (int16_t)(((uint16_t)dados[0] << 8) | dados[1]);
     graus_por_segundo = bruto / LSB_POR_GRAU;
     return true;
 }
@@ -69,32 +86,33 @@ bool imu_iniciar(TwoWire &wire, uint8_t endereco) {
     endereco_imu = endereco;
     offset_z = 0.0f;
 
-    // O reset volta tudo ao padrão; o I2C não responde durante os 30 ms seguintes.
-    // O resultado dessa escrita é ignorado, e a presença é conferida pelo chip ID.
-    escrever_registro(REG_RESET, COMANDO_RESET);
+    uint8_t id = 0;
+    if (!ler_registros(REG_WHO_AM_I, &id, 1) || !id_aceito(id)) {
+        return false;
+    }
+
+    // O reset volta tudo ao padrão e deixa o chip em modo sleep.
+    escrever_registro(REG_ENERGIA_1, COMANDO_RESET);
     delay(TEMPO_RESET_MS);
 
-    uint8_t id = 0;
-    if (!ler_registros(REG_CHIP_ID, &id, 1) || id != CHIP_ID) {
+    if (!escrever_registro(REG_ENERGIA_1, RELOGIO_GIRO_X) ||
+        !escrever_registro(REG_CONFIG, FILTRO_42HZ) ||
+        !escrever_registro(REG_DIVISOR_TAXA, DIVISOR_200HZ) ||
+        !escrever_registro(REG_CONFIG_GIRO, FAIXA_1000_GRAUS)) {
         return false;
     }
 
-    if (!escrever_registro(REG_FAIXA, FAIXA_1000_GRAUS) ||
-        !escrever_registro(REG_BANDA, BANDA_200HZ_23HZ)) {
-        return false;
-    }
-
-    // Confere a configuração. O bit 7 da banda sempre é lido como 1.
+    // Confere a configuração.
     uint8_t faixa = 0;
-    uint8_t banda = 0;
-    if (!ler_registros(REG_FAIXA, &faixa, 1) || !ler_registros(REG_BANDA, &banda, 1)) {
+    uint8_t filtro = 0;
+    if (!ler_registros(REG_CONFIG_GIRO, &faixa, 1) || !ler_registros(REG_CONFIG, &filtro, 1)) {
         return false;
     }
-    if (faixa != FAIXA_1000_GRAUS || (banda & 0x0F) != BANDA_200HZ_23HZ) {
+    if ((faixa & 0x18) != FAIXA_1000_GRAUS || (filtro & 0x07) != FILTRO_42HZ) {
         return false;
     }
 
-    // Espera o filtro assentar antes da primeira leitura válida.
+    // Espera o relógio e o filtro assentarem antes da primeira leitura válida.
     delay(50);
     return true;
 }

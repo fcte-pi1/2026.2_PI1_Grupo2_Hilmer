@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Corrida, Prisma, Telemetria } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,11 +22,6 @@ export interface FinishRunOptions {
   corridaId?: string;
   goalReached?: boolean;
   finalizadaEm?: Date;
-  /**
-   * Sem corrida ativa em memória, encerra a última corrida 'EM_ANDAMENTO' do
-   * banco (padrão: true).
-   */
-  fallbackToLastOpen?: boolean;
 }
 
 export interface RecordTelemetryOptions {
@@ -37,7 +32,7 @@ export interface RecordTelemetryOptions {
 }
 
 @Injectable()
-export class RunsService {
+export class RunsService implements OnModuleInit {
   private readonly logger = new Logger(RunsService.name);
 
   /**
@@ -46,7 +41,39 @@ export class RunsService {
    */
   private readonly activeRuns = new Map<string, string>();
 
+  /**
+   * Cache em memória de corridas finalizadas com sucesso (FINALIZADA) na sessão.
+   * Evita race condition onde RUN_END concorrente sobrescreve status para ABORTADA.
+   */
+  private readonly finalizedRuns = new Set<string>();
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Limpa corridas órfãs deixadas em 'EM_ANDAMENTO' no banco (ex: reinicialização abrupta).
+   */
+  async onModuleInit(): Promise<void> {
+    if (!process.env.DATABASE_URL) return;
+    try {
+      const result = await this.prisma.corrida.updateMany({
+        where: { status: 'EM_ANDAMENTO' },
+        data: {
+          status: 'ABORTADA',
+          finalizadaEm: new Date(),
+        },
+      });
+      if (result.count > 0) {
+        this.logger.warn(
+          `[RunsService] Inicialização: ${result.count} corrida(s) órfã(s) em 'EM_ANDAMENTO' foram marcadas como 'ABORTADA'.`,
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `[RunsService] Falha ao encerrar corridas órfãs na inicialização: ${msg}`,
+      );
+    }
+  }
 
   /**
    * Inicia uma nova corrida para o robô.
@@ -62,6 +89,7 @@ export class RunsService {
       if (this.activeRuns.has(robotKey)) {
         const previousId = this.activeRuns.get(robotKey)!;
         await this.finishRun({
+          robotId: robotKey,
           corridaId: previousId,
           goalReached: false,
           finalizadaEm: iniciadaEm,
@@ -103,67 +131,74 @@ export class RunsService {
    */
   async finishRun(options: FinishRunOptions = {}): Promise<Corrida | null> {
     const robotKey = options.robotId ?? 'default';
-    let corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
+    const corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
 
-    // Libera a corrida ativa antes de qualquer await, para que encerramentos
-    // concorrentes (GOAL_REACHED seguido de RUN_END) não fechem a mesma corrida
-    // de novo e sobrescrevam o status.
-    if (corridaId && this.activeRuns.get(robotKey) === corridaId) {
+    if (!corridaId) {
+      this.logger.debug(
+        `[RunsService] Nenhuma corrida ativa encontrada para finalizar (robô: ${robotKey}).`,
+      );
+      return null;
+    }
+
+    if (this.finalizedRuns.has(corridaId)) {
+      this.logger.debug(
+        `[RunsService] Corrida ${corridaId} já finalizada com sucesso (cache em memória).`,
+      );
+      return null;
+    }
+
+    if (this.activeRuns.get(robotKey) === corridaId) {
       this.activeRuns.delete(robotKey);
     }
 
     try {
-      if (!corridaId) {
-        if (options.fallbackToLastOpen === false) {
-          this.logger.debug(
-            `[RunsService] Nenhuma corrida ativa para finalizar (robô: ${robotKey}).`,
-          );
-          return null;
-        }
-        // Tenta buscar a última corrida 'EM_ANDAMENTO' no banco
-        const lastOpen = await this.prisma.corrida.findFirst({
-          where: { status: 'EM_ANDAMENTO' },
-          orderBy: { iniciadaEm: 'desc' },
-        });
-        if (!lastOpen) {
-          this.logger.debug(
-            `[RunsService] Nenhuma corrida ativa encontrada para finalizar (robô: ${robotKey}).`,
-          );
-          return null;
-        }
-        corridaId = lastOpen.id;
-      }
-
-      // Se a corrida já foi marcada como FINALIZADA ou CONCLUIDA, não sobrescreve com ABORTADA
-      const existing = await this.prisma.corrida.findUnique({
-        where: { id: corridaId },
-        select: { status: true },
-      });
-      if (
-        existing &&
-        (existing.status === 'FINALIZADA' || existing.status === 'CONCLUIDA')
-      ) {
-        this.logger.debug(
-          '[RunsService] Corrida ' + corridaId + ' já finalizada com sucesso (' + existing.status + ').',
-        );
-        return null;
-      }
-
-      const status = options.goalReached ? 'FINALIZADA' : 'ABORTADA';
       const finalizadaEm = options.finalizadaEm ?? new Date();
 
-      const corrida = await this.prisma.corrida.update({
-        where: { id: corridaId },
-        data: {
-          status,
-          finalizadaEm,
-        },
-      });
+      if (options.goalReached) {
+        this.finalizedRuns.add(corridaId);
 
-      this.logger.log(
-        `[RunsService] Corrida encerrada: ${corrida.id} (Status: ${status})`,
-      );
-      return corrida;
+        const corrida = await this.prisma.corrida.update({
+          where: { id: corridaId },
+          data: {
+            status: 'FINALIZADA',
+            finalizadaEm,
+          },
+        });
+
+        this.logger.log(
+          `[RunsService] Corrida encerrada com sucesso: ${corrida.id} (Status: FINALIZADA)`,
+        );
+        return corrida;
+      } else {
+        // Encerramento como ABORTADA: atualização atômica para garantir que se outra chamada
+        // já definiu FINALIZADA, ela não seja sobrescrita no banco.
+        const updateResult = await this.prisma.corrida.updateMany({
+          where: {
+            id: corridaId,
+            status: 'EM_ANDAMENTO',
+          },
+          data: {
+            status: 'ABORTADA',
+            finalizadaEm,
+          },
+        });
+
+        if (updateResult.count === 0) {
+          this.logger.debug(
+            `[RunsService] Corrida ${corridaId} não estava EM_ANDAMENTO (possivelmente já FINALIZADA). Não alterado.`,
+          );
+          return null;
+        }
+
+        const corrida = await this.prisma.corrida.findUnique({
+          where: { id: corridaId },
+        });
+
+        this.logger.log(
+          `[RunsService] Corrida encerrada: ${corridaId} (Status: ABORTADA)`,
+        );
+        return corrida;
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
@@ -274,7 +309,8 @@ export class RunsService {
       },
     });
   }
-// ==========================================
+
+  // ==========================================
   // CONSULTAS REST / HISTÓRICO E RECORDES
   // ==========================================
 
@@ -303,7 +339,7 @@ export class RunsService {
       orderBy: { iniciadaEm: 'desc' },
     });
 
-    return runs.map(({ telemetrias, ...run }) => ({
+    return runs.map(({ telemetrias = [], ...run }) => ({
       ...this.mapRunResponse(run),
       ...this.calcularMetricas(telemetrias),
     }));
@@ -486,18 +522,14 @@ export class RunsService {
   async handleRunFinished(
     envelope: IngestedMessageEnvelope<EventPayloadDto>,
   ): Promise<void> {
-    // GOAL_REACHED também emite run.goal_reached, que já encerra a corrida
-    // como FINALIZADA em handleGoalReached.
-    if (envelope.data.event === 'GOAL_REACHED') return;
-
-    // RUN_END: encerra só a corrida ativa deste robô. Se ela já foi finalizada
-    // pelo GOAL_REACHED, não há o que fazer; buscar no banco abortaria outra
-    // corrida que estivesse em andamento.
+    // Se o evento foi GOAL_REACHED, ele já foi tratado por handleGoalReached (@OnEvent RUN_GOAL_REACHED)
+    if (envelope.data.event === 'GOAL_REACHED') {
+      return;
+    }
     await this.finishRun({
       robotId: envelope.data.robot_id,
       goalReached: false,
       finalizadaEm: envelope.recebido_em,
-      fallbackToLastOpen: false,
     });
   }
 
