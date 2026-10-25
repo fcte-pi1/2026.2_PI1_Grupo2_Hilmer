@@ -61,9 +61,11 @@ describe('RunsService', () => {
           id: 'telem-1',
           ...data,
         })),
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'telem-1', corridaId: 'run-1', timestamp: new Date() },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: 'telem-1', corridaId: 'run-1', timestamp: new Date() },
+          ]),
       },
     };
 
@@ -81,6 +83,17 @@ describe('RunsService', () => {
   });
 
   describe('onModuleInit', () => {
+    // onModuleInit não faz nada sem DATABASE_URL; o teste não pode depender do
+    // ambiente de quem roda a suíte.
+    const databaseUrlOriginal = process.env.DATABASE_URL;
+    beforeEach(() => {
+      process.env.DATABASE_URL = 'postgresql://teste';
+    });
+    afterEach(() => {
+      if (databaseUrlOriginal === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = databaseUrlOriginal;
+    });
+
     it('deve marcar corridas órfãs em EM_ANDAMENTO como ABORTADA', async () => {
       await service.onModuleInit();
       expect(prisma.corrida.updateMany).toHaveBeenCalledWith({
@@ -90,7 +103,9 @@ describe('RunsService', () => {
     });
 
     it('deve tratar erro na inicialização sem propagar exceção', async () => {
-      prisma.corrida.updateMany.mockRejectedValueOnce(new Error('DB Init Error'));
+      prisma.corrida.updateMany.mockRejectedValueOnce(
+        new Error('DB Init Error'),
+      );
       await expect(service.onModuleInit()).resolves.toBeUndefined();
     });
   });
@@ -238,6 +253,123 @@ describe('RunsService', () => {
         goalReached: true,
       });
       expect(result).toBeNull();
+    });
+  });
+
+  describe('encerramento por eventos', () => {
+    const evento = (event: 'GOAL_REACHED' | 'RUN_END') => ({
+      data: {
+        v: 1 as const,
+        type: 'event' as const,
+        robot_id: 'ROBOT_1',
+        seq: 1,
+        t_ms: 0,
+        event,
+      },
+      recebido_em: new Date(),
+    });
+
+    it('não deve sobrescrever FINALIZADA quando RUN_END chega logo após GOAL_REACHED', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+
+      // Como no EventEmitter: os handlers não são aguardados um pelo outro.
+      await Promise.all([
+        service.handleGoalReached(evento('GOAL_REACHED')),
+        service.handleRunFinished(evento('GOAL_REACHED')),
+        service.handleRunFinished(evento('RUN_END')),
+      ]);
+
+      expect(prisma.corrida.update).toHaveBeenCalledTimes(1);
+      expect(prisma.corrida.update).toHaveBeenCalledWith({
+        where: { id: 'run-1' },
+        data: expect.objectContaining({ status: 'FINALIZADA' }),
+      });
+      expect(prisma.corrida.updateMany).not.toHaveBeenCalled();
+      expect(prisma.corrida.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('deve abortar a corrida ativa quando RUN_END chega sem GOAL_REACHED', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+
+      await service.handleRunFinished(evento('RUN_END'));
+
+      expect(prisma.corrida.updateMany).toHaveBeenCalledWith({
+        where: { id: 'run-1', status: 'EM_ANDAMENTO' },
+        data: expect.objectContaining({ status: 'ABORTADA' }),
+      });
+    });
+
+    it('RUN_END sem corrida ativa não deve abortar outra corrida do banco', async () => {
+      await service.handleRunFinished(evento('RUN_END'));
+
+      expect(prisma.corrida.findFirst).not.toHaveBeenCalled();
+      expect(prisma.corrida.update).not.toHaveBeenCalled();
+      expect(prisma.corrida.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll: métricas das telemetrias', () => {
+    const corridaComTelemetrias = {
+      ...mockCorrida,
+      status: 'FINALIZADA',
+      finalizadaEm: new Date('2026-10-17T12:00:30Z'),
+      labirinto: { id: 'lab-2', dimensao: '8x4' },
+      labirintoId: 'lab-2',
+      telemetrias: [
+        { sensores: { speed_mm_s: 200, battery_pct: 98 } },
+        { sensores: { speed_mm_s: 400, battery_pct: 96 } },
+        { sensores: { speed_mm_s: 300, battery_pct: 95 } },
+      ],
+    };
+
+    it('deve calcular velocidade média e bateria a partir das telemetrias', async () => {
+      prisma.corrida.findMany.mockResolvedValue([corridaComTelemetrias]);
+
+      const [run] = await service.findAll();
+
+      expect(run).toEqual({
+        id: 'run-1',
+        labirintoId: 'lab-2',
+        labirinto: '8x4',
+        status: 'FINALIZADA',
+        iniciadaEm: corridaComTelemetrias.iniciadaEm,
+        finalizadaEm: corridaComTelemetrias.finalizadaEm,
+        duracaoSegundos: 30,
+        velocidadeMedia: 0.3,
+        bateriaInicial: 98,
+        bateriaFinal: 95,
+      });
+    });
+
+    it('deve devolver métricas vazias para corrida sem telemetria', async () => {
+      prisma.corrida.findMany.mockResolvedValue([
+        { ...corridaComTelemetrias, telemetrias: [] },
+      ]);
+
+      const [run] = await service.findAll();
+
+      expect(run).toMatchObject({
+        velocidadeMedia: 0,
+        bateriaInicial: null,
+        bateriaFinal: null,
+      });
+    });
+
+    it('deve buscar só os sensores das telemetrias, em ordem cronológica', async () => {
+      prisma.corrida.findMany.mockResolvedValue([]);
+
+      await service.findAll();
+
+      expect(prisma.corrida.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          include: expect.objectContaining({
+            telemetrias: {
+              select: { sensores: true },
+              orderBy: { timestamp: 'asc' },
+            },
+          }),
+        }),
+      );
     });
   });
 

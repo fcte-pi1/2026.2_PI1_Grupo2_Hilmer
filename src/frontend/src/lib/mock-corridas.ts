@@ -4,7 +4,7 @@ import type {
   StatusCorrida,
 } from './corridas';
 
-// Histórico fictício no formato de GET /corridas. Remover quando a rota existir.
+// Histórico fictício no formato de GET /runs, usado com NEXT_PUBLIC_USE_MOCK=true.
 function corrida(
   n: number,
   labirinto: DimensaoLabirinto,

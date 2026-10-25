@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import type { CorridaResumo, DimensaoLabirinto } from '@/lib/corridas';
+import Link from 'next/link';
+import type {
+  CorridaResumo,
+  DimensaoLabirinto,
+  RecordeLabirinto,
+} from '@/lib/corridas';
 import { formatarData, formatarTempo, formatarVelocidade } from '@/lib/format';
 import { GraficoCorridas, type PontoGrafico } from './GraficoCorridas';
 
-type Filtro = 'TODOS' | DimensaoLabirinto;
+export type Filtro = 'TODOS' | DimensaoLabirinto;
 const FILTROS: Filtro[] = ['TODOS', '4x4', '8x4', '12x4'];
 
 const COR_TEMPO = '#3987e5';
@@ -15,26 +19,36 @@ const COR_BATERIA = '#d95926';
 const ROTULO_STATUS: Record<CorridaResumo['status'], string> = {
   EM_ANDAMENTO: 'Em andamento',
   FINALIZADA: 'Finalizada',
+  CONCLUIDA: 'Concluída',
   ABORTADA: 'Abortada',
+  FALHA: 'Falha',
 };
 
+const ehSucesso = (c: CorridaResumo) =>
+  c.status === 'FINALIZADA' || c.status === 'CONCLUIDA';
+
 interface HistoricoDashboardProps {
+  /** Corridas já filtradas pelo backend (GET /runs?mazeId=). */
   corridas: CorridaResumo[];
+  /** Recorde de cada labirinto (GET /runs/best). */
+  recordes?: RecordeLabirinto[];
+  filtro?: Filtro;
 }
 
-export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
-  const [filtro, setFiltro] = useState<Filtro>('TODOS');
-
-  // Numera pela ordem cronológica de todo o histórico, para o "#n" de uma
-  // corrida não mudar quando o filtro muda.
-  const numeradas = [...corridas]
+export function HistoricoDashboard({
+  corridas,
+  recordes = [],
+  filtro = 'TODOS',
+}: HistoricoDashboardProps) {
+  // Numera pela ordem cronológica das corridas do filtro atual.
+  const visiveis = [...corridas]
     .sort((a, b) => a.iniciadaEm.localeCompare(b.iniciadaEm))
     .map((c, i) => ({ ...c, numero: `#${i + 1}` }));
-  const visiveis = numeradas.filter(
-    (c) => filtro === 'TODOS' || c.labirinto === filtro,
-  );
   const encerradas = visiveis.filter((c) => c.status !== 'EM_ANDAMENTO');
-  const finalizadas = visiveis.filter((c) => c.status === 'FINALIZADA');
+  const finalizadas = visiveis.filter(ehSucesso);
+  const comBateria = encerradas.filter(
+    (c) => c.bateriaInicial !== null && c.bateriaFinal !== null,
+  );
 
   const pontos = (
     lista: typeof visiveis,
@@ -46,17 +60,24 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
       valor: valor(c),
     }));
 
-  const consumo = (c: CorridaResumo) => c.bateriaInicial - c.bateriaFinal;
+  const consumo = (c: CorridaResumo) =>
+    (c.bateriaInicial ?? 0) - (c.bateriaFinal ?? 0);
   const media = (valores: number[]) =>
     valores.length === 0
       ? null
       : valores.reduce((soma, v) => soma + v, 0) / valores.length;
 
-  const melhorTempo = finalizadas.length
-    ? Math.min(...finalizadas.map((c) => c.duracaoSegundos ?? Infinity))
+  // Em "Todos", o recorde é o menor tempo entre os recordes de cada labirinto.
+  const recordesDoFiltro = recordes.filter(
+    (r) => filtro === 'TODOS' || r.labirinto === filtro,
+  );
+  const recorde = recordesDoFiltro.length
+    ? recordesDoFiltro.reduce((melhor, r) =>
+        r.tempoSegundos < melhor.tempoSegundos ? r : melhor,
+      )
     : null;
   const velocidadeMedia = media(encerradas.map((c) => c.velocidadeMedia));
-  const consumoMedio = media(encerradas.map(consumo));
+  const consumoMedio = media(comBateria.map(consumo));
   const taxaSucesso = encerradas.length
     ? (finalizadas.length / encerradas.length) * 100
     : null;
@@ -66,17 +87,16 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="opacity-70">Labirinto:</span>
         {FILTROS.map((f) => (
-          <button
+          <Link
             key={f}
-            type="button"
-            onClick={() => setFiltro(f)}
-            aria-pressed={filtro === f}
+            href={f === 'TODOS' ? '/historico' : `/historico?labirinto=${f}`}
+            aria-current={filtro === f ? 'page' : undefined}
             className={`rounded px-3 py-1 border border-white/30 ${
               filtro === f ? 'bg-[#393A99] font-bold' : 'opacity-60'
             }`}
           >
             {f === 'TODOS' ? 'Todos' : f}
-          </button>
+          </Link>
         ))}
       </div>
 
@@ -87,8 +107,12 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
           valor={taxaSucesso === null ? '—' : `${taxaSucesso.toFixed(0)}%`}
         />
         <Indicador
-          rotulo="Melhor tempo"
-          valor={melhorTempo === null ? '—' : formatarTempo(melhorTempo)}
+          rotulo={
+            recorde && filtro === 'TODOS'
+              ? `Recorde (${recorde.labirinto})`
+              : 'Recorde'
+          }
+          valor={recorde === null ? '—' : formatarTempo(recorde.tempoSegundos)}
         />
         <Indicador
           rotulo="Velocidade média"
@@ -121,7 +145,7 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
           titulo="Consumo de bateria"
           tipo="barra"
           cor={COR_BATERIA}
-          dados={pontos(encerradas, consumo)}
+          dados={pontos(comBateria, consumo)}
           formatarValor={(v) => `${v}%`}
         />
       </div>
@@ -142,6 +166,14 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
               </tr>
             </thead>
             <tbody>
+              {visiveis.length === 0 && (
+                <tr className="border-t border-white/10">
+                  <td colSpan={7} className="px-4 py-6 text-center opacity-70">
+                    Nenhuma corrida registrada
+                    {filtro === 'TODOS' ? '' : ` para o labirinto ${filtro}`}.
+                  </td>
+                </tr>
+              )}
               {[...visiveis].reverse().map((c) => (
                 <tr key={c.id} className="border-t border-white/10">
                   <td className="px-4 py-2">{c.numero}</td>
@@ -157,7 +189,9 @@ export function HistoricoDashboard({ corridas }: HistoricoDashboardProps) {
                     {formatarVelocidade(c.velocidadeMedia)}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    {c.bateriaInicial}% → {c.bateriaFinal}%
+                    {c.bateriaInicial === null || c.bateriaFinal === null
+                      ? '—'
+                      : `${c.bateriaInicial}% → ${c.bateriaFinal}%`}
                   </td>
                 </tr>
               ))}
