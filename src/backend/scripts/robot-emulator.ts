@@ -1,12 +1,15 @@
+
 /**
  * Mock Emulador do Micromouse Físico
  *
- * Simula o hardware do robô conectando ao Gateway WebSocket em ws://localhost:3001/ingest
- * e transmitindo eventos e telemetria a 10 Hz (100 ms) seguindo rigorosamente o contrato de dados.
+ * Simula o hardware do robô conectando ao Gateway WebSocket em
+ * ws://localhost:3001/ingest e transmitindo eventos e telemetria.
  *
  * Execução:
  *   npm run robot:emulator
  *   npm run robot:emulator -- --hz 10 --steps 120 --loop
+ *   npm run robot:emulator -- --maze 8x4 --battery 75
+ *   npm run robot:emulator -- --battery 50 --battery-drain 0.2
  */
 
 import WebSocket from 'ws';
@@ -18,6 +21,8 @@ interface EmulatorConfig {
   totalSteps: number;
   loop: boolean;
   maze: '4x4' | '8x4' | '12x4';
+  battery: number;
+  batteryDrain: number;
 }
 
 type TrajectoryPoint = {
@@ -64,9 +69,23 @@ const trajectories: Record<'4x4' | '8x4' | '12x4', TrajectoryPoint[]> = {
 // Configurações padrão e parse de argumentos CLI
 function parseArgs(): EmulatorConfig {
   const args = process.argv.slice(2);
+
   const getArg = (flag: string, fallback: string): string => {
     const idx = args.indexOf(flag);
     return idx !== -1 && args[idx + 1] ? args[idx + 1] : fallback;
+  };
+
+  const getNumberArg = (flag: string, fallback: number): number => {
+    const rawValue = getArg(flag, String(fallback));
+    const value = Number(rawValue);
+
+    if (!Number.isFinite(value)) {
+      throw new Error(
+        `Valor inválido para ${flag}: "${rawValue}". Informe um número válido.`,
+      );
+    }
+
+    return value;
   };
 
   const rawMaze = getArg('--maze', '4x4');
@@ -75,16 +94,39 @@ function parseArgs(): EmulatorConfig {
     | '8x4'
     | '12x4';
 
+  const battery = getNumberArg('--battery', 100);
+  const batteryDrain = getNumberArg('--battery-drain', 0.05);
+  const hz = getNumberArg('--hz', 10);
+  const totalSteps = getNumberArg('--steps', 100);
+
+  if (battery < 0 || battery > 100) {
+    throw new Error('--battery deve estar entre 0 e 100.');
+  }
+
+  if (batteryDrain < 0) {
+    throw new Error('--battery-drain não pode ser negativo.');
+  }
+
+  if (hz < 1 || hz > 50) {
+    throw new Error('--hz deve estar entre 1 e 50.');
+  }
+
+  if (!Number.isInteger(totalSteps) || totalSteps < 1) {
+    throw new Error('--steps deve ser um número inteiro maior que zero.');
+  }
+
   return {
     url: getArg(
       '--url',
       process.env.TELEMETRY_WS_URL ?? 'ws://localhost:3001/ingest',
     ),
-    hz: Math.max(1, Math.min(50, Number(getArg('--hz', '10')))),
+    hz,
     robotId: getArg('--robot-id', 'PIH_02_MOUSE'),
-    totalSteps: Number(getArg('--steps', '100')), // 100 passos a 10 Hz = 10 segundos
+    totalSteps,
     loop: args.includes('--loop'),
     maze,
+    battery,
+    batteryDrain,
   };
 }
 
@@ -106,9 +148,12 @@ async function runSimulation(): Promise<void> {
   console.log(`🔄 Modo Loop:      ${config.loop ? 'Ativado' : 'Desativado'}`);
   console.log(`🗺️ Labirinto:       ${config.maze}`);
   console.log(`🏁 Passos/Ciclo:   ${config.totalSteps}`);
+  console.log(`🔋 Bateria inicial: ${config.battery}%`);
+  console.log(`📉 Consumo/passo:  ${config.batteryDrain} pontos percentuais`);
   console.log('='.repeat(65));
 
   let keepRunning = true;
+
   process.on('SIGINT', () => {
     console.log('\n🛑 Interrupção manual recebida. Finalizando emulador...');
     keepRunning = false;
@@ -116,6 +161,7 @@ async function runSimulation(): Promise<void> {
 
   do {
     await simulateSingleRun();
+
     if (config.loop && keepRunning) {
       console.log('\n⏳ Aguardando 3 segundos antes de iniciar novo ciclo de corrida...');
       await sleep(3000);
@@ -131,8 +177,18 @@ function simulateSingleRun(): Promise<void> {
     let seq = 1;
     let startTime = Date.now();
     let totalDistanceMm = 0;
-    let battery = 100.0;
+    let battery = config.battery;
     let timer: NodeJS.Timeout | null = null;
+    let settled = false;
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+
+      if (timer) clearInterval(timer);
+
+      resolve();
+    };
 
     console.log(`\n[WS] Tentando conectar a ${config.url}...`);
     const ws = new WebSocket(config.url);
@@ -141,7 +197,7 @@ function simulateSingleRun(): Promise<void> {
       console.log('🔌 Conectado ao Gateway WebSocket com sucesso!\n');
       startTime = Date.now();
 
-      // 1. Envia evento de calibração concluída (CALIBRATION_DONE)
+      // 1. Evento de calibração concluída
       const calibPayload = {
         v: 1,
         type: 'event',
@@ -152,12 +208,14 @@ function simulateSingleRun(): Promise<void> {
         ok: true,
         battery_pct: battery,
       };
+
       ws.send(JSON.stringify(calibPayload));
+
       console.log(
         `🔧 [EVENT] CALIBRATION_DONE enviado (seq=${calibPayload.seq})`,
       );
 
-      // 2. Envia evento de início de corrida (RUN_START)
+      // 2. Evento de início de corrida
       const startPayload = {
         v: 1,
         type: 'event',
@@ -169,13 +227,16 @@ function simulateSingleRun(): Promise<void> {
         battery_pct: battery,
         pos: { x: trajectory[0].x, y: trajectory[0].y },
       };
+
       ws.send(JSON.stringify(startPayload));
+
       console.log(`🟢 [EVENT] RUN_START enviado (seq=${startPayload.seq})`);
 
       let currentStep = 0;
 
       timer = setInterval(() => {
         currentStep++;
+
         const elapsedMs = Date.now() - startTime;
 
         // Avança na trajetória com base no progresso
@@ -183,17 +244,27 @@ function simulateSingleRun(): Promise<void> {
           trajectory.length - 1,
           Math.floor((currentStep / config.totalSteps) * trajectory.length),
         );
+
         const cell = trajectory[trajIndex];
 
         // Variações realistas de velocidade (250 a 450 mm/s) e ruído leve
-        const speed = Math.round(300 + Math.sin(currentStep * 0.2) * 80 + (Math.random() * 20 - 10));
-        totalDistanceMm += Math.round((speed * intervalMs) / 1000);
-        battery = Math.max(0, Math.round((battery - 0.05) * 10) / 10);
+        const speed = Math.round(
+          300 + Math.sin(currentStep * 0.2) * 80 + (Math.random() * 20 - 10),
+        );
 
-        const isGoalStep = currentStep === config.totalSteps;
+        totalDistanceMm += Math.round((speed * intervalMs) / 1000);
+
+        // Consome a bateria configurada, sem ficar abaixo de zero.
+        // Duas casas decimais permitem representar consumos como 0.05.
+        battery = Math.max(
+          0,
+          Math.round((battery - config.batteryDrain) * 100) / 100,
+        );
+
+        const isGoalStep = currentStep >= config.totalSteps;
         const state = isGoalStep ? 'GOAL_REACHED' : 'EXPLORING';
 
-        // 2. Envia pacote de telemetria a 10 Hz
+        // 3. Pacote de telemetria
         const telemetryPayload = {
           v: 1,
           type: 'telemetry',
@@ -213,15 +284,24 @@ function simulateSingleRun(): Promise<void> {
 
         if (currentStep % 10 === 0 || isGoalStep) {
           console.log(
-            `📡 [TELEMETRIA] #${String(currentStep).padStart(3, '0')} | t=${(elapsedMs / 1000).toFixed(1)}s | seq=${telemetryPayload.seq} | pos=(${cell.x},${cell.y}) ${cell.heading} | vel=${speed} mm/s | odo=${totalDistanceMm} mm | bat=${battery}%`,
+            `📡 [TELEMETRIA] #${String(currentStep).padStart(3, '0')} | ` +
+              `t=${(elapsedMs / 1000).toFixed(1)}s | ` +
+              `seq=${telemetryPayload.seq} | ` +
+              `pos=(${cell.x},${cell.y}) ${cell.heading} | ` +
+              `vel=${speed} mm/s | ` +
+              `odo=${totalDistanceMm} mm | ` +
+              `bat=${battery}%`,
           );
         }
 
-        // 3. Ao atingir o total de passos, dispara GOAL_REACHED e encerra a corrida
+        // 4. Ao atingir o total de passos, finaliza a corrida
         if (isGoalStep) {
-          if (timer) clearInterval(timer);
+          if (timer) {
+            clearInterval(timer);
+            timer = null;
+          }
 
-          // Evento de Chegada
+          // Evento de chegada
           const goalPayload = {
             v: 1,
             type: 'event',
@@ -232,10 +312,14 @@ function simulateSingleRun(): Promise<void> {
             battery_pct: battery,
             pos: { x: cell.x, y: cell.y },
           };
-          ws.send(JSON.stringify(goalPayload));
-          console.log(`🏆 [EVENT] GOAL_REACHED enviado! (seq=${goalPayload.seq})`);
 
-          // Evento de Fim de Corrida
+          ws.send(JSON.stringify(goalPayload));
+
+          console.log(
+            `🏆 [EVENT] GOAL_REACHED enviado! (seq=${goalPayload.seq})`,
+          );
+
+          // Evento de fim de corrida
           const endPayload = {
             v: 1,
             type: 'event',
@@ -245,12 +329,14 @@ function simulateSingleRun(): Promise<void> {
             event: 'RUN_END',
             battery_pct: battery,
           };
+
           ws.send(JSON.stringify(endPayload));
-          console.log(`🏁 [EVENT] RUN_END enviado! (seq=${endPayload.seq})`);
+
+          console.log(`🏁 [EVENT] RUN_END enviado (seq=${endPayload.seq})`);
 
           setTimeout(() => {
             ws.close();
-            resolve();
+            finish();
           }, 500);
         }
       }, intervalMs);
@@ -258,14 +344,15 @@ function simulateSingleRun(): Promise<void> {
 
     ws.on('error', (err) => {
       console.error(`❌ Erro no socket WebSocket: ${err.message}`);
-      if (timer) clearInterval(timer);
-      resolve();
+      finish();
     });
 
     ws.on('close', (code, reason) => {
-      console.log(`🔌 Conexão encerrada pelo servidor (código: ${code}, motivo: ${reason.toString() || 'normal'}).`);
-      if (timer) clearInterval(timer);
-      resolve();
+      console.log(
+        `🔌 Conexão encerrada pelo servidor (código: ${code}, motivo: ${reason.toString() || 'normal'}).`,
+      );
+
+      finish();
     });
   });
 }
