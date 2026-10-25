@@ -20,6 +20,9 @@ const config: Config = {
   moduleNameMapper: pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
+    '!src/main.ts',
+    '!src/dev-ingest.ts',
+    '!src/**/*.module.ts',
     'libs/**/*.(t|j)s',
     'apps/**/*.(t|j)s',
   ],
