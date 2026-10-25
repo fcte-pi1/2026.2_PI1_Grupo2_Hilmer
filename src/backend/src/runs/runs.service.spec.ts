@@ -163,6 +163,19 @@ describe('RunsService', () => {
       });
       expect(result).toBeDefined();
     });
+
+    it('não deve sobrescrever corrida FINALIZADA por ABORTADA caso receba evento avulso posterior', async () => {
+      prisma.corrida.findUnique.mockResolvedValueOnce({
+        id: 'run-1',
+        status: 'FINALIZADA',
+      });
+      const result = await service.finishRun({
+        corridaId: 'run-1',
+        goalReached: false,
+      });
+      expect(result).toBeNull();
+      expect(prisma.corrida.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('encerramento por eventos', () => {

@@ -134,6 +134,21 @@ export class RunsService {
         corridaId = lastOpen.id;
       }
 
+      // Se a corrida já foi marcada como FINALIZADA ou CONCLUIDA, não sobrescreve com ABORTADA
+      const existing = await this.prisma.corrida.findUnique({
+        where: { id: corridaId },
+        select: { status: true },
+      });
+      if (
+        existing &&
+        (existing.status === 'FINALIZADA' || existing.status === 'CONCLUIDA')
+      ) {
+        this.logger.debug(
+          '[RunsService] Corrida ' + corridaId + ' já finalizada com sucesso (' + existing.status + ').',
+        );
+        return null;
+      }
+
       const status = options.goalReached ? 'FINALIZADA' : 'ABORTADA';
       const finalizadaEm = options.finalizadaEm ?? new Date();
 

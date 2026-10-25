@@ -125,8 +125,56 @@ describe('TelemetryValidationService', () => {
       );
       expect(res2).toBeNull();
       expect(service.getStats().duplicateSeq).toBe(1);
+    });
+
+    it('deve resetar sequência ao receber RUN_START ou CALIBRATION_DONE para permitir nova corrida', async () => {
+      // Pacote com seq alto da corrida anterior
+      await service.processRawMessage(
+        JSON.stringify({
+          v: 1,
+          type: 'telemetry',
+          robot_id: 'mm-01',
+          seq: 150,
+          t_ms: 15000,
+          pos: { x: 3, y: 3 },
+          heading: 'E',
+          speed_mm_s: 300,
+          battery_pct: 80,
+          state: 'EXPLORING',
+        }),
+      );
+
+      // Início de nova corrida com seq reiniciado em 1
+      const runStart = await service.processRawMessage(
+        JSON.stringify({
+          v: 1,
+          type: 'event',
+          robot_id: 'mm-01',
+          seq: 1,
+          t_ms: 100,
+          event: 'RUN_START',
+        }),
+      );
+      expect(runStart).not.toBeNull();
+
+      // Próxima telemetria com seq 2 deve ser aceita normalmente
+      const nextTelemetry = await service.processRawMessage(
+        JSON.stringify({
+          v: 1,
+          type: 'telemetry',
+          robot_id: 'mm-01',
+          seq: 2,
+          t_ms: 200,
+          pos: { x: 0, y: 0 },
+          heading: 'N',
+          speed_mm_s: 200,
+          battery_pct: 100,
+          state: 'EXPLORING',
+        }),
+      );
+      expect(nextTelemetry).not.toBeNull();
       // O contador de emissões permanece em 1
-      expect(eventEmitter.emit).toHaveBeenCalledTimes(1);
+      expect(eventEmitter.emit).toHaveBeenCalledTimes(3);
     });
   });
 
