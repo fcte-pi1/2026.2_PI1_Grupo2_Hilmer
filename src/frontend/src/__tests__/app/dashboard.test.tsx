@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Monitoramento from '@/app/page';
+import { TelemetryProvider } from '@/context/TelemetryContext';
 
 // Dados esperados de cada labirinto em lib/mock-data.ts (estado parado = fim do trajeto).
 const CASOS = [
@@ -142,5 +143,83 @@ describe('Dashboard: simulação da corrida', () => {
       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
     ).toBeInTheDocument();
     expect(screen.getByText('Tipo de labirinto: 8x4')).toBeInTheDocument();
+  });
+});
+
+describe('Dashboard: corrida ao vivo', () => {
+  // WebSocket falso para enviar mensagens do /live ao TelemetryProvider.
+  class FakeWebSocket {
+    static last: FakeWebSocket | null = null;
+    onopen: (() => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onerror: ((err: unknown) => void) | null = null;
+    onclose: (() => void) | null = null;
+    close = jest.fn();
+
+    constructor() {
+      FakeWebSocket.last = this;
+    }
+
+    receive(msg: object) {
+      this.onmessage?.({ data: JSON.stringify(msg) });
+    }
+  }
+
+  const originalWebSocket = global.WebSocket;
+
+  beforeEach(() => {
+    global.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    global.WebSocket = originalWebSocket;
+    jest.restoreAllMocks();
+  });
+
+  const renderAoVivo = () =>
+    render(
+      <TelemetryProvider>
+        <Monitoramento />
+      </TelemetryProvider>,
+    );
+
+  it('mostra o labirinto informado no RUN_START', () => {
+    renderAoVivo();
+    expect(screen.getByText('Tipo de labirinto: 4x4')).toBeInTheDocument();
+
+    act(() =>
+      FakeWebSocket.last?.receive({
+        channel: 'event',
+        event: 'RUN_START',
+        data: { maze: '12x4', pos: { x: 0, y: 0 } },
+      }),
+    );
+
+    expect(screen.getByText('Tipo de labirinto: 12x4')).toBeInTheDocument();
+  });
+
+  it('a telemetria ao vivo interrompe a simulação manual', async () => {
+    const user = userEvent.setup();
+    renderAoVivo();
+
+    await user.click(
+      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+    );
+    expect(
+      screen.getByRole('button', { name: /Pausar Simulação/ }),
+    ).toBeInTheDocument();
+
+    act(() =>
+      FakeWebSocket.last?.receive({
+        channel: 'event',
+        event: 'RUN_START',
+        data: { maze: '4x4' },
+      }),
+    );
+
+    expect(
+      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+    ).toBeInTheDocument();
   });
 });
