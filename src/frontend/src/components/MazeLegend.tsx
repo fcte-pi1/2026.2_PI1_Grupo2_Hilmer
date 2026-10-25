@@ -94,7 +94,7 @@ export function MazeLegend({
             })}
           </div>
 
-          {/* Botão de Animação / Simulação da Corrida */}
+          {/* Botão de Animação / Simulação da Corrida
           {onToggleSimulation && (
             <button
               type="button"
@@ -115,7 +115,7 @@ export function MazeLegend({
                 </>
               )}
             </button>
-          )}
+          )} */}
         </div>
       </div>
     </aside>

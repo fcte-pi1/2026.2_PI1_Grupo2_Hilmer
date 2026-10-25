@@ -4,9 +4,12 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Connection } from './Connection';
 import { BatteryLevel } from './BatteryLevel';
-import { mockData } from '@/lib/mock-data';
+import { useTelemetry } from '@/context/TelemetryContext';
+
 export function Header() {
   const pathname = usePathname();
+  const { isConnected, batteryLevel } = useTelemetry();
+
   return (
     <header className="flex flex-col items-start gap-4 px-4 py-3 border-b bg-[#393A99] text-white font-mono">
       <div className="flex w-full flex-wrap justify-between gap-4">
@@ -17,8 +20,8 @@ export function Header() {
           </p>
         </div>
         <div className="flex items-center gap-6">
-          <Connection connected={mockData.connected} />
-          <BatteryLevel level={mockData.batteryLevel} />
+          <Connection connected={isConnected} />
+          <BatteryLevel level={batteryLevel} />
         </div>
       </div>
       <nav className="flex gap-4 self-center">
