@@ -83,6 +83,20 @@ describe('RunsService', () => {
   });
 
   describe('onModuleInit', () => {
+    const originalDatabaseUrl = process.env.DATABASE_URL;
+
+    beforeEach(() => {
+      process.env.DATABASE_URL = 'postgresql://test@localhost:5432/test';
+    });
+
+    afterEach(() => {
+      if (originalDatabaseUrl === undefined) {
+        delete process.env.DATABASE_URL;
+      } else {
+        process.env.DATABASE_URL = originalDatabaseUrl;
+      }
+    });
+
     // onModuleInit não faz nada sem DATABASE_URL; o teste não pode depender do
     // ambiente de quem roda a suíte.
     const databaseUrlOriginal = process.env.DATABASE_URL;
