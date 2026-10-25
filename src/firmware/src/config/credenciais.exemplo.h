@@ -9,6 +9,7 @@ namespace Credenciais
 {
 
     constexpr const char *WIFI_SSID = "nome-da-rede";
+    // Rede comum com senha (WPA2-PSK), como o ponto de acesso do celular, em 2,4 GHz.
     constexpr const char *WIFI_SENHA = "senha-da-rede";
 
     // Notebook com o backend, na mesma rede do robô: ws://<ip>:3001/ingest

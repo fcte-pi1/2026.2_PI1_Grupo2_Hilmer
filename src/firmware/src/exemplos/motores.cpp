@@ -32,7 +32,7 @@ static void girar(const char *descricao, float esquerdo, float direito) {
 }
 
 void setup() {
-    motores_iniciar(MOTOR_ESQUERDO, MOTOR_DIREITO, Pinos::MOTOR_STBY);
+    motores_iniciar(MOTOR_ESQUERDO, MOTOR_DIREITO);
     Serial.begin(115200);
     delay(2000);
 
@@ -47,7 +47,7 @@ void loop() {
     girar("Direito: ré", 0.0f, -VELOCIDADE_TESTE);
     girar("Os dois: frente (robô andaria para a frente)", VELOCIDADE_TESTE, VELOCIDADE_TESTE);
 
-    Serial.println("Ponte desligada (STBY) por 5 s: as rodas devem girar livres à mão");
+    Serial.println("Ponte desligada (ENA e ENB em nível baixo) por 5 s: as rodas devem girar livres à mão");
     motores_habilitar(false);
     delay(5000);
     motores_habilitar(true);

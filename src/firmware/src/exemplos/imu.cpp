@@ -1,10 +1,11 @@
-// Exemplo mínimo do driver da IMU BMI088 (#236), para testar na placa.
+// Exemplo mínimo do driver da IMU MPU6050 (#236), para testar na placa.
 //
 // Gravar:  pio run -e exemplo_imu -t upload && pio device monitor
 //
 // Calibra o offset com o robô parado e depois integra a velocidade angular do
 // eixo Z a 200 Hz, mostrando o ângulo a cada 200 ms.
 // Conferir:
+//   - o scan do I2C mostra o MPU6050 em 0x68;
 //   - girar o robô 90 graus à mão, para a esquerda (anti-horário visto de cima),
 //     mostra cerca de +90 graus; para a direita, cerca de -90 graus;
 //   - parado, anotar a deriva do ângulo depois de 1 minuto.
@@ -25,6 +26,18 @@ static uint32_t ultimo_us = 0;
 static uint32_t inicio_ms = 0;
 static uint32_t ultima_impressao_ms = 0;
 
+// Mostra os endereços que respondem no barramento I2C.
+static void escanear_i2c() {
+    Serial.print("Dispositivos no I2C:");
+    for (uint8_t endereco = 1; endereco < 127; endereco++) {
+        Wire.beginTransmission(endereco);
+        if (Wire.endTransmission() == 0) {
+            Serial.printf(" 0x%02X", endereco);
+        }
+    }
+    Serial.println();
+}
+
 static void calibrar() {
     Serial.println("Calibrando, mantenha o robô parado...");
     while (!imu_calibrar()) {
@@ -38,19 +51,25 @@ static void calibrar() {
 
 void setup() {
     // Mantém a ponte H desligada.
-    pinMode(Pinos::MOTOR_STBY, OUTPUT);
-    digitalWrite(Pinos::MOTOR_STBY, LOW);
+    pinMode(Pinos::MOTOR_ESQ_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_ESQ_PWM, LOW);
+    pinMode(Pinos::MOTOR_DIR_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_DIR_PWM, LOW);
 
     Serial.begin(115200);
     delay(2000);
 
     Wire.begin(Pinos::I2C_SDA, Pinos::I2C_SCL, I2C_FREQUENCIA_HZ);
+    escanear_i2c();
+    // Os NACKs do scan deixam o driver I2C do ESP-IDF 5 travado; reinicia o barramento.
+    Wire.end();
+    Wire.begin(Pinos::I2C_SDA, Pinos::I2C_SCL, I2C_FREQUENCIA_HZ);
     while (!imu_iniciar(Wire)) {
-        Serial.printf("BMI088 não respondeu no endereço 0x%02X, tentando de novo\n",
+        Serial.printf("MPU6050 não respondeu no endereço 0x%02X, tentando de novo\n",
                       IMU_ENDERECO_PADRAO);
         delay(1000);
     }
-    Serial.println("BMI088 iniciado");
+    Serial.println("MPU6050 iniciado");
     calibrar();
 }
 
@@ -75,7 +94,7 @@ void loop() {
 
     float taxa;
     if (!imu_ler_giro_z(taxa)) {
-        Serial.println("Falha na leitura do BMI088");
+        Serial.println("Falha na leitura do MPU6050");
         return;
     }
     angulo += taxa * dt;

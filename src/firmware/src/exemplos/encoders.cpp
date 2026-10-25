@@ -21,8 +21,10 @@ static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B,
 
 void setup() {
     // Mantém a ponte H desligada para as rodas girarem livres à mão.
-    pinMode(Pinos::MOTOR_STBY, OUTPUT);
-    digitalWrite(Pinos::MOTOR_STBY, LOW);
+    pinMode(Pinos::MOTOR_ESQ_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_ESQ_PWM, LOW);
+    pinMode(Pinos::MOTOR_DIR_PWM, OUTPUT);
+    digitalWrite(Pinos::MOTOR_DIR_PWM, LOW);
 
     Serial.begin(115200);
     delay(2000);

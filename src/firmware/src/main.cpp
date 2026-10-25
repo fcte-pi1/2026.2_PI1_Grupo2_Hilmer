@@ -22,7 +22,7 @@ static const PinosSD PINOS_SD = {Pinos::SD_SCK, Pinos::SD_MISO, Pinos::SD_MOSI, 
 
 void setup() {
     // Motores primeiro, para a ponte H ficar desligada o quanto antes.
-    motores_iniciar(MOTOR_ESQUERDO, MOTOR_DIREITO, Pinos::MOTOR_STBY);
+    motores_iniciar(MOTOR_ESQUERDO, MOTOR_DIREITO);
 
     Serial.begin(115200);
 
@@ -39,6 +39,10 @@ void setup() {
 
     // Só libera a ponte H com tudo iniciado.
     motores_habilitar(true);
+
+    // LED aceso: o firmware terminou de iniciar.
+    pinMode(Pinos::LED_STATUS, OUTPUT);
+    digitalWrite(Pinos::LED_STATUS, HIGH);
     Serial.println("Micromouse iniciado");
 }
 
