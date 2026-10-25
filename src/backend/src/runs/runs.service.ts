@@ -22,6 +22,11 @@ export interface FinishRunOptions {
   corridaId?: string;
   goalReached?: boolean;
   finalizadaEm?: Date;
+  /**
+   * Sem corrida ativa em memória, encerra a última corrida 'EM_ANDAMENTO' do
+   * banco (padrão: true).
+   */
+  fallbackToLastOpen?: boolean;
 }
 
 export interface RecordTelemetryOptions {
@@ -100,8 +105,21 @@ export class RunsService {
     const robotKey = options.robotId ?? 'default';
     let corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
 
+    // Libera a corrida ativa antes de qualquer await, para que encerramentos
+    // concorrentes (GOAL_REACHED seguido de RUN_END) não fechem a mesma corrida
+    // de novo e sobrescrevam o status.
+    if (corridaId && this.activeRuns.get(robotKey) === corridaId) {
+      this.activeRuns.delete(robotKey);
+    }
+
     try {
       if (!corridaId) {
+        if (options.fallbackToLastOpen === false) {
+          this.logger.debug(
+            `[RunsService] Nenhuma corrida ativa para finalizar (robô: ${robotKey}).`,
+          );
+          return null;
+        }
         // Tenta buscar a última corrida 'EM_ANDAMENTO' no banco
         const lastOpen = await this.prisma.corrida.findFirst({
           where: { status: 'EM_ANDAMENTO' },
@@ -127,7 +145,6 @@ export class RunsService {
         },
       });
 
-      this.activeRuns.delete(robotKey);
       this.logger.log(
         `[RunsService] Corrida encerrada: ${corrida.id} (Status: ${status})`,
       );
@@ -454,12 +471,18 @@ export class RunsService {
   async handleRunFinished(
     envelope: IngestedMessageEnvelope<EventPayloadDto>,
   ): Promise<void> {
-    // Se o evento foi GOAL_REACHED, goalReached é true; caso contrário (RUN_END avulso), encerra normalmente
-    const isGoal = envelope.data.event === 'GOAL_REACHED';
+    // GOAL_REACHED também emite run.goal_reached, que já encerra a corrida
+    // como FINALIZADA em handleGoalReached.
+    if (envelope.data.event === 'GOAL_REACHED') return;
+
+    // RUN_END: encerra só a corrida ativa deste robô. Se ela já foi finalizada
+    // pelo GOAL_REACHED, não há o que fazer; buscar no banco abortaria outra
+    // corrida que estivesse em andamento.
     await this.finishRun({
       robotId: envelope.data.robot_id,
-      goalReached: isGoal,
+      goalReached: false,
       finalizadaEm: envelope.recebido_em,
+      fallbackToLastOpen: false,
     });
   }
 

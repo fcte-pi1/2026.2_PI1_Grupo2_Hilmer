@@ -165,6 +165,56 @@ describe('RunsService', () => {
     });
   });
 
+  describe('encerramento por eventos', () => {
+    const evento = (event: 'GOAL_REACHED' | 'RUN_END') => ({
+      data: {
+        v: 1 as const,
+        type: 'event' as const,
+        robot_id: 'ROBOT_1',
+        seq: 1,
+        t_ms: 0,
+        event,
+      },
+      recebido_em: new Date(),
+    });
+
+    it('não deve sobrescrever FINALIZADA quando RUN_END chega logo após GOAL_REACHED', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+
+      // Como no EventEmitter: os handlers não são aguardados um pelo outro.
+      await Promise.all([
+        service.handleGoalReached(evento('GOAL_REACHED')),
+        service.handleRunFinished(evento('GOAL_REACHED')),
+        service.handleRunFinished(evento('RUN_END')),
+      ]);
+
+      expect(prisma.corrida.update).toHaveBeenCalledTimes(1);
+      expect(prisma.corrida.update).toHaveBeenCalledWith({
+        where: { id: 'run-1' },
+        data: expect.objectContaining({ status: 'FINALIZADA' }),
+      });
+      expect(prisma.corrida.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('deve abortar a corrida ativa quando RUN_END chega sem GOAL_REACHED', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+
+      await service.handleRunFinished(evento('RUN_END'));
+
+      expect(prisma.corrida.update).toHaveBeenCalledWith({
+        where: { id: 'run-1' },
+        data: expect.objectContaining({ status: 'ABORTADA' }),
+      });
+    });
+
+    it('RUN_END sem corrida ativa não deve abortar outra corrida do banco', async () => {
+      await service.handleRunFinished(evento('RUN_END'));
+
+      expect(prisma.corrida.findFirst).not.toHaveBeenCalled();
+      expect(prisma.corrida.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('recordTelemetry', () => {
     const mockTelemetryPayload: TelemetryPayloadDto = {
       v: 1,
