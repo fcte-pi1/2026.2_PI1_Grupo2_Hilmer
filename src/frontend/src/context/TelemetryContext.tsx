@@ -206,7 +206,7 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
       };
 
       ws.onerror = (err) => {
-        console.error('[Live WS] Erro de conexão:', err);
+        console.warn('[Live WS] Erro de conexão:', err);
       };
 
       // Sem o backend não dá para saber do robô; tenta de novo até voltar.
