@@ -11,6 +11,7 @@ const config = {
   clearMocks: true,
   collectCoverageFrom: [
     'src/components/**/*.{ts,tsx}',
+    'src/context/**/*.{ts,tsx}',
     'src/lib/**/*.{ts,tsx}',
     '!src/lib/mock-*.ts',
     '!**/*.d.ts',

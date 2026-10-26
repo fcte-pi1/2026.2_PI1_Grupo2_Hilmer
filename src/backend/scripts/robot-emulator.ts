@@ -1,4 +1,3 @@
-
 /**
  * Mock Emulador do Micromouse Físico
  *
@@ -35,34 +34,154 @@ type TrajectoryPoint = {
 // Trajetórias simuladas para cada dimensão de labirinto
 const trajectories: Record<'4x4' | '8x4' | '12x4', TrajectoryPoint[]> = {
   '4x4': [
-    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
-    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
-    { x: 0, y: 2, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
-    { x: 1, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
-    { x: 2, y: 2, heading: 'E', walls: { s: true, n: false, w: false, e: false } },
-    { x: 2, y: 3, heading: 'N', walls: { w: true, n: true, e: false, s: false } },
-    { x: 3, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+    {
+      x: 0,
+      y: 0,
+      heading: 'N',
+      walls: { w: true, s: true, e: false, n: false },
+    },
+    {
+      x: 0,
+      y: 1,
+      heading: 'N',
+      walls: { w: true, e: true, s: false, n: false },
+    },
+    {
+      x: 0,
+      y: 2,
+      heading: 'N',
+      walls: { w: true, n: true, e: false, s: false },
+    },
+    {
+      x: 1,
+      y: 2,
+      heading: 'E',
+      walls: { n: true, s: false, w: false, e: false },
+    },
+    {
+      x: 2,
+      y: 2,
+      heading: 'E',
+      walls: { s: true, n: false, w: false, e: false },
+    },
+    {
+      x: 2,
+      y: 3,
+      heading: 'N',
+      walls: { w: true, n: true, e: false, s: false },
+    },
+    {
+      x: 3,
+      y: 3,
+      heading: 'E',
+      walls: { n: true, e: true, w: false, s: false },
+    },
   ],
   '8x4': [
-    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
-    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
-    { x: 1, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
-    { x: 2, y: 1, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
-    { x: 3, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
-    { x: 4, y: 2, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
-    { x: 5, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
-    { x: 6, y: 3, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
-    { x: 7, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+    {
+      x: 0,
+      y: 0,
+      heading: 'N',
+      walls: { w: true, s: true, e: false, n: false },
+    },
+    {
+      x: 0,
+      y: 1,
+      heading: 'N',
+      walls: { w: true, e: true, s: false, n: false },
+    },
+    {
+      x: 1,
+      y: 1,
+      heading: 'E',
+      walls: { n: false, s: true, w: false, e: false },
+    },
+    {
+      x: 2,
+      y: 1,
+      heading: 'E',
+      walls: { n: true, s: false, w: false, e: false },
+    },
+    {
+      x: 3,
+      y: 1,
+      heading: 'E',
+      walls: { n: false, s: true, w: false, e: false },
+    },
+    {
+      x: 4,
+      y: 2,
+      heading: 'N',
+      walls: { w: true, e: false, s: false, n: false },
+    },
+    {
+      x: 5,
+      y: 2,
+      heading: 'E',
+      walls: { n: true, s: false, w: false, e: false },
+    },
+    {
+      x: 6,
+      y: 3,
+      heading: 'N',
+      walls: { w: true, e: false, s: false, n: false },
+    },
+    {
+      x: 7,
+      y: 3,
+      heading: 'E',
+      walls: { n: true, e: true, w: false, s: false },
+    },
   ],
   '12x4': [
-    { x: 0, y: 0, heading: 'N', walls: { w: true, s: true, e: false, n: false } },
-    { x: 0, y: 1, heading: 'N', walls: { w: true, e: true, s: false, n: false } },
-    { x: 2, y: 1, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
-    { x: 4, y: 2, heading: 'E', walls: { n: true, s: false, w: false, e: false } },
-    { x: 6, y: 2, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
-    { x: 8, y: 3, heading: 'N', walls: { w: true, e: false, s: false, n: false } },
-    { x: 10, y: 3, heading: 'E', walls: { n: false, s: true, w: false, e: false } },
-    { x: 11, y: 3, heading: 'E', walls: { n: true, e: true, w: false, s: false } },
+    {
+      x: 0,
+      y: 0,
+      heading: 'N',
+      walls: { w: true, s: true, e: false, n: false },
+    },
+    {
+      x: 0,
+      y: 1,
+      heading: 'N',
+      walls: { w: true, e: true, s: false, n: false },
+    },
+    {
+      x: 2,
+      y: 1,
+      heading: 'E',
+      walls: { n: false, s: true, w: false, e: false },
+    },
+    {
+      x: 4,
+      y: 2,
+      heading: 'E',
+      walls: { n: true, s: false, w: false, e: false },
+    },
+    {
+      x: 6,
+      y: 2,
+      heading: 'E',
+      walls: { n: false, s: true, w: false, e: false },
+    },
+    {
+      x: 8,
+      y: 3,
+      heading: 'N',
+      walls: { w: true, e: false, s: false, n: false },
+    },
+    {
+      x: 10,
+      y: 3,
+      heading: 'E',
+      walls: { n: false, s: true, w: false, e: false },
+    },
+    {
+      x: 11,
+      y: 3,
+      heading: 'E',
+      walls: { n: true, e: true, w: false, s: false },
+    },
   ],
 };
 
@@ -90,9 +209,7 @@ function parseArgs(): EmulatorConfig {
 
   const rawMaze = getArg('--maze', '4x4');
   const maze = (['4x4', '8x4', '12x4'].includes(rawMaze) ? rawMaze : '4x4') as
-    | '4x4'
-    | '8x4'
-    | '12x4';
+    '4x4' | '8x4' | '12x4';
 
   const battery = getNumberArg('--battery', 100);
   const batteryDrain = getNumberArg('--battery-drain', 0.05);
@@ -143,7 +260,9 @@ async function runSimulation(): Promise<void> {
   console.log('🤖 MOCK EMULADOR DO MICROMOUSE (HARDWARE EMULATOR)');
   console.log('='.repeat(65));
   console.log(`📡 Alvo WebSocket: ${config.url}`);
-  console.log(`⏱️ Frequência:     ${config.hz} Hz (intervalo: ${intervalMs} ms)`);
+  console.log(
+    `⏱️ Frequência:     ${config.hz} Hz (intervalo: ${intervalMs} ms)`,
+  );
   console.log(`🆔 Robot ID:       ${config.robotId}`);
   console.log(`🔄 Modo Loop:      ${config.loop ? 'Ativado' : 'Desativado'}`);
   console.log(`🗺️ Labirinto:       ${config.maze}`);
@@ -163,7 +282,9 @@ async function runSimulation(): Promise<void> {
     await simulateSingleRun();
 
     if (config.loop && keepRunning) {
-      console.log('\n⏳ Aguardando 3 segundos antes de iniciar novo ciclo de corrida...');
+      console.log(
+        '\n⏳ Aguardando 3 segundos antes de iniciar novo ciclo de corrida...',
+      );
       await sleep(3000);
     }
   } while (config.loop && keepRunning);

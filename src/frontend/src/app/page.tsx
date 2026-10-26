@@ -19,9 +19,11 @@ export default function Monitoramento() {
 
   const {
     isLiveActive,
+    liveMaze,
     livePos,
     liveHeading,
     livePath,
+    liveWalls,
     liveSpeed,
     liveTime,
     liveBatteryConsumo,
@@ -29,19 +31,17 @@ export default function Monitoramento() {
     resetLiveState,
   } = useTelemetry();
 
-  const baseData = mazeMocks[selectedMaze];
+  // Durante a corrida ao vivo vale o labirinto informado no RUN_START
+  const dimension = isLiveActive && liveMaze ? liveMaze : selectedMaze;
+  const baseData = mazeMocks[dimension];
   const maxSteps = baseData.path.length;
 
-  // Se a telemetria ao vivo começar, desativa a simulação manual
-  useEffect(() => {
-    if (isLiveActive) {
-      setIsSimulating(false);
-    }
-  }, [isLiveActive]);
+  // A telemetria ao vivo tem prioridade sobre a simulação manual
+  const simulating = isSimulating && !isLiveActive;
 
   // Simulação manual local (fallback)
   useEffect(() => {
-    if (!isSimulating) return;
+    if (!simulating) return;
 
     const interval = setInterval(() => {
       setCurrentStep((prev) => {
@@ -54,20 +54,20 @@ export default function Monitoramento() {
     }, 450);
 
     return () => clearInterval(interval);
-  }, [isSimulating, maxSteps]);
+  }, [simulating, maxSteps]);
 
-  const effectiveStep = isSimulating ? currentStep : maxSteps - 1;
+  const effectiveStep = simulating ? currentStep : maxSteps - 1;
   const currentPath = isLiveActive
     ? livePath
-    : isSimulating
+    : simulating
       ? baseData.path.slice(0, effectiveStep + 1)
       : baseData.path;
 
   const currentPos = isLiveActive
     ? livePos
-    : isSimulating
-      ? baseData.path[effectiveStep] ?? baseData.path[0]
-      : baseData.path[maxSteps - 1] ?? baseData.path[0];
+    : simulating
+      ? (baseData.path[effectiveStep] ?? baseData.path[0])
+      : (baseData.path[maxSteps - 1] ?? baseData.path[0]);
 
   const getSimulatedHeading = (stepIdx: number): HeadingDirection => {
     if (stepIdx === 0) return 'N';
@@ -83,31 +83,31 @@ export default function Monitoramento() {
 
   const currentHeading = isLiveActive
     ? liveHeading
-    : isSimulating
+    : simulating
       ? getSimulatedHeading(effectiveStep)
       : baseData.robotPosition.heading;
 
   const currentSpeed = isLiveActive
     ? liveSpeed
-    : isSimulating
+    : simulating
       ? Math.round((2.0 + (effectiveStep / maxSteps) * 1.5) * 10) / 10
       : baseData.speed;
 
   const currentTime = isLiveActive
     ? liveTime
-    : isSimulating
+    : simulating
       ? Math.round((effectiveStep / maxSteps) * baseData.completionTime)
       : baseData.completionTime;
 
   const currentBatteryConsumo = isLiveActive
     ? liveBatteryConsumo
-    : isSimulating
+    : simulating
       ? Math.round((effectiveStep / maxSteps) * baseData.batteryConsumption)
       : baseData.batteryConsumption;
 
   const currentChallengeCompleted = isLiveActive
     ? liveGoalReached
-    : isSimulating
+    : simulating
       ? effectiveStep === maxSteps - 1
       : baseData.challengeCompleted;
 
@@ -120,7 +120,7 @@ export default function Monitoramento() {
 
   const handleToggleSimulation = () => {
     resetLiveState();
-    if (isSimulating) {
+    if (simulating) {
       setIsSimulating(false);
     } else {
       setCurrentStep(0);
@@ -131,27 +131,27 @@ export default function Monitoramento() {
   return (
     <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-5">
       <MazeLegend
-        currentDimension={selectedMaze}
+        currentDimension={dimension}
         onSelectDimension={handleSelectDimension}
-        isSimulating={isSimulating}
+        isSimulating={simulating}
         onToggleSimulation={handleToggleSimulation}
       />
 
       <MazeMap
-        dimension={selectedMaze}
+        dimension={dimension}
         robotPosition={{
           x: currentPos.x,
           y: currentPos.y,
           heading: currentHeading,
         }}
         path={currentPath}
-        discoveredWalls={baseData.discoveredWalls}
+        discoveredWalls={isLiveActive ? liveWalls : baseData.discoveredWalls}
       />
 
       <PainelResultados>
         <ChallengeFlag completed={currentChallengeCompleted} />
         <Battery consumo={currentBatteryConsumo} />
-        <MazeType type={selectedMaze} />
+        <MazeType type={dimension} />
         <Speed speed={currentSpeed} />
         <Time time={currentTime} />
       </PainelResultados>

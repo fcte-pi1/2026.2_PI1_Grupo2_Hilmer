@@ -1,11 +1,4 @@
-
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from '@jest/globals';
+import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 import { createServer, type Server } from 'http';
 import type { AddressInfo } from 'net';
 import type { HttpAdapterHost } from '@nestjs/core';
@@ -92,7 +85,7 @@ describe('TelemetryBroadcastService', () => {
 
       const onMessage = (raw: WebSocket.RawData) => {
         clearTimeout(timeout);
-        resolve(JSON.parse(raw.toString()));
+        resolve(JSON.parse((raw as Buffer).toString('utf8')));
       };
 
       client.once('message', onMessage);
