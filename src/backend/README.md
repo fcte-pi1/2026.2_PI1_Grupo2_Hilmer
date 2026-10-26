@@ -74,7 +74,7 @@ A taxa é medida em janelas de 1 s (`ConnectionMonitorService.getRate(robotId)`)
 cd src/backend
 npm install
 
-# testes automatizados (63 testes unitários)
+# testes automatizados (109 testes; npm run test:cov mostra a cobertura)
 npm test
 
 # servidor completo NestJS (Ingestão WebSocket + Prisma + Regras de Corridas)

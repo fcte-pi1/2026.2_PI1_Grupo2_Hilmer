@@ -88,7 +88,7 @@ O RF-14 já está implementado no backend (rotas `GET /runs`, `GET /runs/best` e
 | 15 | [#294](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/294) | Iniciação | — | Integração do Frontend com o Backend Real via REST | 19/10/2026 | 25/10/2026 | Edilson-r-jr | — | 0% | Backlog do Sprint | Sprint 7 |
 | 16 | [#295](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/295) | — | — | Testes Unitários do Frontend e Ajustes de Responsividade/Layout | 19/10/2026 | 25/10/2026 | EdHCG | — | 100% | Fechado | Sprint 7 |
 | 17 | [#165](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/165) | — | — | Integração hardware/software | 20/10/2026 | 30/10/2026 | — | — | 0% | A Fazer | — |
-| 18 | [#293](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/293) | — | — | Envio da telemetria | 21/10/2026 | 26/10/2026 | Felipe-Brandim | — | 0% | Backlog do Sprint | Sprint 7 |
+| 18 | [#293](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/293) | — | — | Envio da telemetria | 21/10/2026 | 26/10/2026 | Felipe-Brandim | #302 | 0% | Backlog do Sprint | Sprint 7 |
 | 19 | [#218](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/218) | Execução | — | Execução de testes funcionais (Mock) e ajustes de bugs | 27/10/2026 | 29/10/2026 | joaoPedro-201 | — | 100% | Fechado | Sprint 7 |
 | 20 | [#219](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/219) | — | — | Deploy em Nuvem (Vercel, Render e PostgreSQL) | 30/10/2026 | 04/11/2026 | — | — | 0% | A Fazer | — |
 | 21 | [#187](https://github.com/fcte-pi1/2026.2_PI1_Grupo2_Hilmer/issues/187) | — | — | Testes de comunicação com ESP32 físico via WebSockets | 05/11/2026 | 15/11/2026 | Edilson-r-jr | — | 0% | A Fazer | — |
