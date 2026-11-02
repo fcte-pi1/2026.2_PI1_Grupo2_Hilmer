@@ -1,12 +1,17 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
+  /** 200 com tudo de pé; 503 (mesmo corpo) se alguma dependência cair. */
   @Get('health')
-  health() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+  async health() {
+    const report = await this.appService.checkHealth();
+    if (report.status !== 'ok') {
+      throw new ServiceUnavailableException(report);
+    }
+    return report;
   }
 }
