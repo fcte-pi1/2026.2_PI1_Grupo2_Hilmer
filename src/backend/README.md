@@ -74,7 +74,7 @@ A taxa é medida em janelas de 1 s (`ConnectionMonitorService.getRate(robotId)`)
 cd src/backend
 npm install
 
-# testes automatizados (109 testes; npm run test:cov mostra a cobertura)
+# testes automatizados (115 testes; npm run test:cov mostra a cobertura)
 npm test
 
 # servidor completo NestJS (Ingestão WebSocket + Prisma + Regras de Corridas)
@@ -92,3 +92,72 @@ npm run robot:emulator -- --hz 10 --steps 120 --loop
 
 O log mostra os eventos `run.*`, o registro das corridas no banco (`[RunsService] Corrida iniciada/encerrada`), um `telemetry.received` a cada 10 pacotes e a taxa medida a cada segundo (`... Hz`, nível `debug`).
 
+## Docker e healthcheck
+
+O `Dockerfile` é multi-stage: o estágio `build` instala tudo, roda `prisma generate` e compila o Nest; o `runtime` leva só `dist/`, as dependências de produção (com o Prisma Client gerado) e as migrações, e roda como o usuário `node` (sem root). Ao iniciar, o container aplica as migrações pendentes (`prisma migrate deploy`) e sobe o `node dist/main`.
+
+```bash
+cd src/backend
+
+# banco + backend, na ordem certa (o backend espera o Postgres ficar healthy)
+npm run docker:up        # = docker compose -f infra/compose.yaml up -d --build
+docker compose -f infra/compose.yaml ps   # STATUS mostra (healthy)/(unhealthy)
+
+# só o banco, para rodar o backend fora do Docker com npm run start:dev
+npm run services:up
+```
+
+> Não rode `npm run start:dev` com o container do backend de pé: os dois usam as portas 3002 e 3001.
+
+### `GET /health`
+
+Faz um `SELECT 1` no banco via Prisma, com timeout de 2 s, e devolve o status de cada dependência:
+
+| Situação | HTTP | Corpo |
+| --- | --- | --- |
+| Banco respondendo | `200` | `{ "status": "ok", "timestamp": "...", "dependencies": { "database": { "status": "up", "latencyMs": 2 } } }` |
+| Banco fora ou lento | `503` | `{ "status": "error", ..., "dependencies": { "database": { "status": "down", "latencyMs": 3 } } }` |
+
+O motivo da falha vai só para o log (`[AppService] Healthcheck: banco indisponível: ...`), porque a mensagem do Prisma pode trazer o endereço do banco e o `/health` é público.
+
+O `healthcheck` do compose (e o `HEALTHCHECK` da imagem) roda `infra/scripts/healthcheck.js` a cada 10 s. Com o Postgres parado, o container fica `unhealthy` em cerca de 30 s (3 falhas) e continua rodando; quando o banco volta, o Prisma reconecta sozinho e o container volta a `healthy` no próximo ciclo, sem reiniciar (RNF-18). O `restart: unless-stopped` cobre o caso de o processo cair.
+
+### Render
+
+No serviço do backend na Render (#219), configure **Settings → Health Check Path = `/health`**. Assim a Render só manda tráfego para uma instância nova depois que ela responder 200, e marca o serviço como fora do ar quando o banco cair.
+
+## Desempenho do histórico (`GET /runs`, `GET /runs/best`)
+
+Índices criados na migração `add_indices_historico`:
+
+| Tabela | Índice | Para quê |
+| --- | --- | --- |
+| `telemetrias` | `(corrida_id, timestamp)` | primeira e última amostra de cada corrida, amostras em ordem |
+| `corridas` | `(labirinto_id, iniciada_em DESC)` | histórico filtrado por labirinto, do mais recente ao mais antigo |
+| `corridas` | `(status)` | melhor resultado e limpeza das corridas órfãs (`EM_ANDAMENTO`) |
+
+O `GET /runs` não traz mais as telemetrias para a aplicação: busca só a primeira e a última amostra de cada corrida. A bateria inicial e final vem dessas amostras, e a **velocidade média passa a ser distância/tempo** (`Δodo_mm / Δt_ms`, em m/s) em vez da média de todos os `speed_mm_s`. Sem `odo_mm` (campo opcional), a velocidade fica 0. O `GET /runs/best` virou uma consulta só (`DISTINCT ON` por labirinto), sem o N+1.
+
+Medição com o banco populado pelo emulador (3 corridas reais multiplicadas: 3.006 corridas, 448 mil telemetrias, ~1.000 corridas por labirinto):
+
+| Rota | Antes | Depois |
+| --- | --- | --- |
+| `GET /runs?mazeId=4x4` | ~4,5 s | ~80 ms |
+| `GET /runs` (todas) | ~12,5 s | ~195 ms |
+| `GET /runs/best` | ~50 ms | ~15–30 ms |
+
+No `EXPLAIN ANALYZE`, a busca da primeira/última amostra usa `Index Scan` / `Index Scan Backward` em `telemetrias_corrida_id_timestamp_idx` (35 ms; sem o índice, 113 s). Em `corridas`, com só ~3 mil linhas, o Postgres ainda prefere `Seq Scan` quando o filtro devolve 1/3 da tabela; os índices entram nas consultas seletivas (`status = 'EM_ANDAMENTO'`, histórico paginado com `LIMIT`) e conforme a tabela cresce.
+
+Para reproduzir (use um banco à parte para não misturar com os dados de desenvolvimento):
+
+```bash
+cd src/backend
+docker exec microMouse-db-dev psql -U localUser -d postgres -c 'CREATE DATABASE "microMouse_bench"'
+DATABASE_URL="postgresql://localUser:localPassword@localhost:5432/microMouse_bench?schema=public" npx prisma migrate deploy
+
+# suba o backend apontando para esse banco e rode algumas corridas com o emulador
+# (npm run robot:emulator -- --maze 8x4 ...); depois multiplique e meça:
+docker exec -i microMouse-db-dev psql -U localUser -d microMouse_bench -v copias=1000 < infra/scripts/bench-popular.sql
+docker cp infra/scripts/. microMouse-db-dev:/tmp/bench/
+docker exec microMouse-db-dev psql -U localUser -d microMouse_bench -v maze=4x4 -f /tmp/bench/bench-historico.sql
+```
