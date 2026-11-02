@@ -25,6 +25,10 @@ model Corrida {
   finalizadaEm DateTime?    @map("finalizada_em")
   telemetrias  Telemetria[]
 
+  // Histórico filtrado por labirinto, do mais recente ao mais antigo (RF-14)
+  @@index([labirintoId, iniciadaEm(sort: Desc)])
+  // Melhor resultado (RF-15) e limpeza de corridas órfãs filtram por status
+  @@index([status])
   @@map("corridas")
 }
 
@@ -38,5 +42,7 @@ model Telemetria {
   direcao   String
   sensores  Json
 
+  // Amostras de uma corrida em ordem cronológica (métricas e replay)
+  @@index([corridaId, timestamp])
   @@map("telemetrias")
 }
