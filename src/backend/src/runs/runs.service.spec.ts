@@ -491,6 +491,87 @@ describe('RunsService', () => {
 
       expect(result).toBeNull();
     });
+
+    it('deve aguardar startRun em andamento (ex: RUN_START 8x4) sem criar corrida automática 4x4 duplicada', async () => {
+      let resolveUpsert!: (val: { id: string; dimensao: string }) => void;
+      prisma.labirinto.upsert.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      );
+      prisma.corrida.create.mockResolvedValueOnce({
+        ...mockCorrida,
+        id: 'run-8x4',
+        labirintoId: 'lab-8x4',
+      });
+
+      // 1. Dispara startRun(8x4) — fica aguardando o upsert do banco
+      const startPromise = service.startRun({
+        robotId: 'ROBOT_RACE',
+        dimensaoLabirinto: '8x4',
+      });
+
+      // 2. Antes do startRun terminar, chega a primeira telemetria
+      const telemetryPromise = service.recordTelemetry({
+        robotId: 'ROBOT_RACE',
+        payload: { ...mockTelemetryPayload, robot_id: 'ROBOT_RACE' },
+      });
+
+      // 3. Libera o banco para concluir o startRun(8x4)
+      resolveUpsert({ id: 'lab-8x4', dimensao: '8x4' });
+
+      const [createdRun, recordedTelemetry] = await Promise.all([
+        startPromise,
+        telemetryPromise,
+      ]);
+
+      // Deve ter criado apenas UMA corrida (a 8x4), sem disparar fallback 4x4
+      expect(prisma.labirinto.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.labirinto.upsert).toHaveBeenCalledWith({
+        where: { dimensao: '8x4' },
+        update: {},
+        create: { dimensao: '8x4' },
+      });
+      expect(prisma.corrida.create).toHaveBeenCalledTimes(1);
+      expect(createdRun?.id).toBe('run-8x4');
+      expect(recordedTelemetry).toEqual(
+        expect.objectContaining({ corridaId: 'run-8x4' }),
+      );
+      expect(service.getActiveRunId('ROBOT_RACE')).toBe('run-8x4');
+    });
+
+    it('deve aguardar startRun em andamento caso finishRun chegue antes do banco responder', async () => {
+      let resolveUpsert!: (val: { id: string; dimensao: string }) => void;
+      prisma.labirinto.upsert.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      );
+      prisma.corrida.create.mockResolvedValueOnce({
+        ...mockCorrida,
+        id: 'run-12x4',
+      });
+
+      const startPromise = service.startRun({
+        robotId: 'ROBOT_FAST',
+        dimensaoLabirinto: '12x4',
+      });
+      const finishPromise = service.finishRun({
+        robotId: 'ROBOT_FAST',
+        goalReached: true,
+      });
+
+      resolveUpsert({ id: 'lab-12x4', dimensao: '12x4' });
+
+      const [, finished] = await Promise.all([startPromise, finishPromise]);
+
+      expect(finished?.status).toBe('FINALIZADA');
+      expect(prisma.corrida.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'run-12x4' } }),
+      );
+    });
   });
 
   describe('Consultas REST e Histórico', () => {

@@ -1,0 +1,20 @@
+# Gerados localmente (a imagem instala e compila do zero)
+node_modules
+.next
+.swc
+out
+coverage
+*.tsbuildinfo
+
+# Variáveis de ambiente locais ficam fora da imagem; vêm do compose ou do deploy
+.env
+.env.*
+
+# Testes unitários não vão para a imagem de produção
+src/__tests__
+jest.config.mjs
+jest.setup.ts
+
+Dockerfile
+.dockerignore
+*.md

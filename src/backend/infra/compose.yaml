@@ -40,5 +40,34 @@ services:
       retries: 3
     restart: unless-stopped
 
+  frontend:
+    container_name: "microMouse-frontend"
+    build:
+      context: ../../frontend
+    environment:
+      # No servidor Next (SSR do /historico), fala com o container do backend pela rede interna
+      API_URL: "http://backend:3002"
+      NEXT_PUBLIC_API_URL: "http://localhost:3002"
+      NEXT_PUBLIC_USE_MOCK: "false"
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
 volumes:
   postgres_data:

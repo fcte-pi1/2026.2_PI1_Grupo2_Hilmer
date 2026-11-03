@@ -74,6 +74,8 @@ async function main() {
         sensores: {
           seq,
           v: 1,
+          t_ms: seq * 100,
+          odo_mm: seq * 28,
           speed_mm_s: Math.round(250 + Math.random() * 50),
           battery_pct: Math.max(10, Number((100 - seq * 0.05).toFixed(1))),
           distancia_frontal_mm: Math.round(80 + Math.random() * 40),
