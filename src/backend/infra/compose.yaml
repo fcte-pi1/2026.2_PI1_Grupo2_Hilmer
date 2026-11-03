@@ -8,6 +8,37 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # $$ escapa o $ para a variável ser lida dentro do container
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    container_name: "microMouse-backend"
+    build:
+      context: ..
+    environment:
+      # Mesmas credenciais do .env.development, mas o host é o serviço
+      # "database" da rede do compose
+      DATABASE_URL: "postgresql://localUser:localPassword@database:5432/microMouse?schema=public"
+      PORT: 3002
+      TELEMETRY_WS_PORT: 3001
+    ports:
+      - "3002:3002"
+      - "3001:3001"
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "infra/scripts/healthcheck.js"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
   postgres_data:

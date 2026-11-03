@@ -6,8 +6,10 @@ import { RunsService } from './runs.service';
 describe('RunsService', () => {
   let service: RunsService;
   let prisma: {
+    $queryRaw: jest.Mock;
     labirinto: {
       upsert: jest.Mock;
+      findFirst: jest.Mock;
       findMany: jest.Mock;
     };
     corrida: {
@@ -38,8 +40,10 @@ describe('RunsService', () => {
 
   beforeEach(async () => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       labirinto: {
         upsert: jest.fn().mockResolvedValue(mockLabirinto),
+        findFirst: jest.fn().mockResolvedValue({ id: mockLabirinto.id }),
         findMany: jest.fn().mockResolvedValue([mockLabirinto]),
       },
       corrida: {
@@ -323,21 +327,28 @@ describe('RunsService', () => {
   });
 
   describe('findAll: métricas das telemetrias', () => {
-    const corridaComTelemetrias = {
+    const corridaFinalizada = {
       ...mockCorrida,
       status: 'FINALIZADA',
       finalizadaEm: new Date('2026-10-17T12:00:30Z'),
       labirinto: { id: 'lab-2', dimensao: '8x4' },
       labirintoId: 'lab-2',
-      telemetrias: [
-        { sensores: { speed_mm_s: 200, battery_pct: 98 } },
-        { sensores: { speed_mm_s: 400, battery_pct: 96 } },
-        { sensores: { speed_mm_s: 300, battery_pct: 95 } },
-      ],
     };
 
-    it('deve calcular velocidade média e bateria a partir das telemetrias', async () => {
-      prisma.corrida.findMany.mockResolvedValue([corridaComTelemetrias]);
+    // Primeira e última amostra: 9 m em 30 s => 0,3 m/s
+    const extremos = {
+      corridaId: 'run-1',
+      bateriaInicial: 98,
+      bateriaFinal: 95,
+      odoInicialMm: 0,
+      odoFinalMm: 9000,
+      tInicialMs: 1000,
+      tFinalMs: 31000,
+    };
+
+    it('deve calcular velocidade média (distância/tempo) e bateria da primeira e da última amostra', async () => {
+      prisma.corrida.findMany.mockResolvedValue([corridaFinalizada]);
+      prisma.$queryRaw.mockResolvedValue([extremos]);
 
       const [run] = await service.findAll();
 
@@ -346,8 +357,8 @@ describe('RunsService', () => {
         labirintoId: 'lab-2',
         labirinto: '8x4',
         status: 'FINALIZADA',
-        iniciadaEm: corridaComTelemetrias.iniciadaEm,
-        finalizadaEm: corridaComTelemetrias.finalizadaEm,
+        iniciadaEm: corridaFinalizada.iniciadaEm,
+        finalizadaEm: corridaFinalizada.finalizadaEm,
         duracaoSegundos: 30,
         velocidadeMedia: 0.3,
         bateriaInicial: 98,
@@ -356,9 +367,8 @@ describe('RunsService', () => {
     });
 
     it('deve devolver métricas vazias para corrida sem telemetria', async () => {
-      prisma.corrida.findMany.mockResolvedValue([
-        { ...corridaComTelemetrias, telemetrias: [] },
-      ]);
+      prisma.corrida.findMany.mockResolvedValue([corridaFinalizada]);
+      prisma.$queryRaw.mockResolvedValue([]);
 
       const [run] = await service.findAll();
 
@@ -369,21 +379,41 @@ describe('RunsService', () => {
       });
     });
 
-    it('deve buscar só os sensores das telemetrias, em ordem cronológica', async () => {
-      prisma.corrida.findMany.mockResolvedValue([]);
+    it('deve zerar a velocidade sem odômetro ou com uma amostra só', async () => {
+      prisma.corrida.findMany.mockResolvedValue([corridaFinalizada]);
+
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { ...extremos, odoInicialMm: null, odoFinalMm: null },
+      ]);
+      const [semOdometro] = await service.findAll();
+
+      prisma.$queryRaw.mockResolvedValueOnce([
+        { ...extremos, odoFinalMm: 0, tFinalMs: extremos.tInicialMs },
+      ]);
+      const [umaAmostra] = await service.findAll();
+
+      expect(semOdometro.velocidadeMedia).toBe(0);
+      expect(semOdometro.bateriaFinal).toBe(95);
+      expect(umaAmostra.velocidadeMedia).toBe(0);
+    });
+
+    it('não deve trazer as telemetrias pelo Prisma, só as métricas agregadas no banco', async () => {
+      prisma.corrida.findMany.mockResolvedValue([corridaFinalizada]);
 
       await service.findAll();
 
-      expect(prisma.corrida.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          include: expect.objectContaining({
-            telemetrias: {
-              select: { sensores: true },
-              orderBy: { timestamp: 'asc' },
-            },
-          }),
-        }),
-      );
+      const [args] = prisma.corrida.findMany.mock.calls[0];
+      expect(args.include).toEqual({ labirinto: true });
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      // Os IDs das corridas vão como um único parâmetro (array)
+      expect(prisma.$queryRaw.mock.calls[0]).toContainEqual(['run-1']);
+    });
+
+    it('não deve consultar telemetrias quando não houver corridas', async () => {
+      prisma.corrida.findMany.mockResolvedValue([]);
+
+      await expect(service.findAll()).resolves.toEqual([]);
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 
@@ -500,50 +530,67 @@ describe('RunsService', () => {
       expect(res[0].labirinto).toBe('4x4');
     });
 
-    it('findAll com filtro mazeId deve filtrar por labirintoId ou dimensao', async () => {
+    it('findAll com filtro mazeId deve resolver o labirinto por ID ou dimensão e filtrar por labirintoId', async () => {
+      prisma.labirinto.findFirst.mockResolvedValueOnce({ id: 'lab-2' });
+
       await service.findAll('8x4');
+
+      expect(prisma.labirinto.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ id: '8x4' }, { dimensao: '8x4' }] },
+        select: { id: true },
+      });
       expect(prisma.corrida.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            OR: [{ labirintoId: '8x4' }, { labirinto: { dimensao: '8x4' } }],
-          },
-        }),
+        expect.objectContaining({ where: { labirintoId: 'lab-2' } }),
       );
     });
 
-    it('findBestRuns deve calcular a melhor corrida por labirinto', async () => {
-      const labirinto8x4 = { id: 'lab-2', dimensao: '8x4' };
-      prisma.labirinto.findMany.mockResolvedValueOnce([
-        mockLabirinto,
-        labirinto8x4,
+    it('findAll com labirinto inexistente deve devolver lista vazia sem consultar corridas', async () => {
+      prisma.labirinto.findFirst.mockResolvedValueOnce(null);
+
+      await expect(service.findAll('16x16')).resolves.toEqual([]);
+      expect(prisma.corrida.findMany).not.toHaveBeenCalled();
+    });
+
+    it('findBestRuns deve devolver a melhor corrida de cada labirinto em uma consulta só', async () => {
+      // O banco já devolve uma linha por labirinto (DISTINCT ON); labirintos
+      // sem corrida concluída não aparecem.
+      prisma.$queryRaw.mockResolvedValueOnce([
+        {
+          labirinto: '4x4',
+          labirintoCriadoEm: new Date('2026-10-01T00:00:00Z'),
+          labirintoId: 'lab-1',
+          corridaId: 'run-B',
+          status: 'FINALIZADA',
+          iniciadaEm: new Date('2026-10-17T12:00:00Z'),
+          finalizadaEm: new Date('2026-10-17T12:00:10Z'),
+        },
       ]);
 
-      // Corridas do lab-1 (4x4): run A (20s) e run B (10s)
-      const runA = {
-        id: 'run-A',
-        labirintoId: 'lab-1',
-        status: 'FINALIZADA',
-        iniciadaEm: new Date('2026-10-17T12:00:00Z'),
-        finalizadaEm: new Date('2026-10-17T12:00:20Z'),
-      };
-      const runB = {
-        id: 'run-B',
-        labirintoId: 'lab-1',
-        status: 'FINALIZADA',
-        iniciadaEm: new Date('2026-10-17T12:00:00Z'),
-        finalizadaEm: new Date('2026-10-17T12:00:10Z'),
-      };
-
-      // Labirinto 8x4 sem corridas concluídas
-      prisma.corrida.findMany
-        .mockResolvedValueOnce([runA, runB])
-        .mockResolvedValueOnce([]);
-
       const best = await service.findBestRuns();
-      expect(best).toHaveLength(1);
-      expect(best[0].corridaId).toBe('run-B');
-      expect(best[0].tempoSegundos).toBe(10);
-      expect(best[0].labirinto).toBe('4x4');
+
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.labirinto.findMany).not.toHaveBeenCalled();
+      expect(prisma.corrida.findMany).not.toHaveBeenCalled();
+      expect(best).toEqual([
+        {
+          labirinto: '4x4',
+          labirintoId: 'lab-1',
+          corridaId: 'run-B',
+          status: 'FINALIZADA',
+          tempoSegundos: 10,
+          iniciadaEm: new Date('2026-10-17T12:00:00Z'),
+          finalizadaEm: new Date('2026-10-17T12:00:10Z'),
+        },
+      ]);
+    });
+
+    it('findBestRuns deve considerar só corridas concluídas com sucesso', async () => {
+      await service.findBestRuns();
+
+      // Os status entram como parâmetros da consulta, não como texto no SQL
+      const [, ...valores] = prisma.$queryRaw.mock.calls[0];
+      expect(JSON.stringify(valores)).toContain('CONCLUIDA');
+      expect(JSON.stringify(valores)).toContain('FINALIZADA');
     });
 
     it('findById deve retornar corrida com metricas calculadas', async () => {

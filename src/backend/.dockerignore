@@ -1,0 +1,20 @@
+# Gerados localmente (a imagem instala e compila do zero)
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Variáveis de ambiente ficam fora da imagem; vêm do compose ou da Render
+.env
+.env.*
+
+# Testes, emulador e infra local não vão para a imagem
+test
+tests
+scripts
+infra
+!infra/scripts/healthcheck.js
+
+Dockerfile
+.dockerignore
+*.md

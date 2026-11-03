@@ -24,6 +24,34 @@ export interface FinishRunOptions {
   finalizadaEm?: Date;
 }
 
+/** Status de corrida que contam como resultado válido (RF-15). */
+const STATUS_SUCESSO = ['CONCLUIDA', 'FINALIZADA'];
+
+interface ExtremosCorridaRow {
+  corridaId: string;
+  bateriaInicial: number | null;
+  bateriaFinal: number | null;
+  odoInicialMm: number | null;
+  odoFinalMm: number | null;
+  tInicialMs: number | null;
+  tFinalMs: number | null;
+}
+
+interface MelhorCorridaRow {
+  labirinto: string;
+  labirintoCriadoEm: Date;
+  labirintoId: string;
+  corridaId: string;
+  status: string;
+  iniciadaEm: Date;
+  finalizadaEm: Date;
+}
+
+function calcularDuracaoSegundos(iniciadaEm: Date, finalizadaEm: Date) {
+  const ms = new Date(finalizadaEm).getTime() - new Date(iniciadaEm).getTime();
+  return Number((ms / 1000).toFixed(2));
+}
+
 export interface RecordTelemetryOptions {
   robotId?: string;
   corridaId?: string;
@@ -318,110 +346,137 @@ export class RunsService implements OnModuleInit {
    * Lista todas as corridas com suporte a filtro por labirinto (ID ou dimensão).
    */
   async findAll(mazeId?: string) {
-    const where = mazeId
-      ? {
-          OR: [
-            { labirintoId: mazeId },
-            { labirinto: { dimensao: mazeId } },
-          ],
-        }
-      : {};
+    let where: Prisma.CorridaWhereInput = {};
+
+    if (mazeId) {
+      // Resolve o labirinto antes: filtrar direto por labirinto_id deixa o
+      // Postgres usar o índice (labirinto_id, iniciada_em DESC).
+      const labirinto = await this.prisma.labirinto.findFirst({
+        where: { OR: [{ id: mazeId }, { dimensao: mazeId }] },
+        select: { id: true },
+      });
+      if (!labirinto) return [];
+      where = { labirintoId: labirinto.id };
+    }
 
     const runs = await this.prisma.corrida.findMany({
       where,
-      include: {
-        labirinto: true,
-        telemetrias: {
-          select: { sensores: true },
-          orderBy: { timestamp: 'asc' },
-        },
-      },
+      include: { labirinto: true },
       orderBy: { iniciadaEm: 'desc' },
     });
 
-    return runs.map(({ telemetrias = [], ...run }) => ({
+    const metricas = await this.buscarMetricas(runs.map((run) => run.id));
+
+    return runs.map((run) => ({
       ...this.mapRunResponse(run),
-      ...this.calcularMetricas(telemetrias),
+      ...this.calcularMetricas(metricas.get(run.id)),
     }));
   }
 
   /**
-   * Agrega as telemetrias de uma corrida: velocidade média (speed_mm_s
-   * convertida para m/s) e bateria da primeira e da última amostra.
+   * Busca no banco só a primeira e a última amostra de cada corrida (dois
+   * index scans em (corrida_id, timestamp)), em vez de trazer todas as
+   * telemetrias para a aplicação.
    */
-  private calcularMetricas(telemetrias: { sensores: Prisma.JsonValue }[]) {
-    const sensores = telemetrias.map(
-      (t) =>
-        (t.sensores ?? {}) as { speed_mm_s?: number; battery_pct?: number },
-    );
-    const velocidades = sensores
-      .map((s) => s.speed_mm_s)
-      .filter((v): v is number => typeof v === 'number');
-    const baterias = sensores
-      .map((s) => s.battery_pct)
-      .filter((b): b is number => typeof b === 'number');
+  private async buscarMetricas(
+    corridaIds: string[],
+  ): Promise<Map<string, ExtremosCorridaRow>> {
+    if (corridaIds.length === 0) return new Map();
 
-    const velocidadeMedia = velocidades.length
-      ? Number(
-          (
-            velocidades.reduce((soma, v) => soma + v, 0) /
-            velocidades.length /
-            1000
-          ).toFixed(2),
-        )
-      : 0;
+    const linhas = await this.prisma.$queryRaw<ExtremosCorridaRow[]>`
+      SELECT
+        c.id AS "corridaId",
+        (ini.sensores->>'battery_pct')::float8 AS "bateriaInicial",
+        (fim.sensores->>'battery_pct')::float8 AS "bateriaFinal",
+        (ini.sensores->>'odo_mm')::float8 AS "odoInicialMm",
+        (fim.sensores->>'odo_mm')::float8 AS "odoFinalMm",
+        (ini.sensores->>'t_ms')::float8 AS "tInicialMs",
+        (fim.sensores->>'t_ms')::float8 AS "tFinalMs"
+      FROM unnest(${corridaIds}::text[]) AS c(id)
+      JOIN LATERAL (
+        SELECT t.sensores
+        FROM telemetrias t
+        WHERE t.corrida_id = c.id
+        ORDER BY t."timestamp" ASC
+        LIMIT 1
+      ) ini ON true
+      JOIN LATERAL (
+        SELECT t.sensores
+        FROM telemetrias t
+        WHERE t.corrida_id = c.id
+        ORDER BY t."timestamp" DESC
+        LIMIT 1
+      ) fim ON true
+    `;
+
+    return new Map(linhas.map((linha) => [linha.corridaId, linha]));
+  }
+
+  /**
+   * Velocidade média = distância percorrida (odo_mm) / tempo (t_ms) entre a
+   * primeira e a última amostra; mm/ms já é m/s. Sem telemetria (ou sem
+   * deslocamento no tempo), as métricas ficam vazias.
+   */
+  private calcularMetricas(extremos?: ExtremosCorridaRow) {
+    if (!extremos) {
+      return { velocidadeMedia: 0, bateriaInicial: null, bateriaFinal: null };
+    }
+
+    const { odoInicialMm, odoFinalMm, tInicialMs, tFinalMs } = extremos;
+    const distanciaMm =
+      odoInicialMm != null && odoFinalMm != null
+        ? odoFinalMm - odoInicialMm
+        : 0;
+    const tempoMs =
+      tInicialMs != null && tFinalMs != null ? tFinalMs - tInicialMs : 0;
 
     return {
-      velocidadeMedia,
-      bateriaInicial: baterias.length ? baterias[0] : null,
-      bateriaFinal: baterias.length ? baterias[baterias.length - 1] : null,
+      velocidadeMedia:
+        distanciaMm > 0 && tempoMs > 0
+          ? Number((distanciaMm / tempoMs).toFixed(2))
+          : 0,
+      bateriaInicial: extremos.bateriaInicial,
+      bateriaFinal: extremos.bateriaFinal,
     };
   }
 
   /**
-   * Retorna a melhor corrida (menor tempo) para cada labirinto cadastrado.
+   * Retorna a melhor corrida (menor tempo) para cada labirinto cadastrado,
+   * em uma única consulta (DISTINCT ON por labirinto).
    */
   async findBestRuns() {
-    const labirintos = await this.prisma.labirinto.findMany();
-    const bestRuns = [];
+    const melhores = await this.prisma.$queryRaw<MelhorCorridaRow[]>`
+      SELECT *
+      FROM (
+        SELECT DISTINCT ON (c.labirinto_id)
+          l.dimensao AS labirinto,
+          l.created_at AS "labirintoCriadoEm",
+          c.labirinto_id AS "labirintoId",
+          c.id AS "corridaId",
+          c.status,
+          c.iniciada_em AS "iniciadaEm",
+          c.finalizada_em AS "finalizadaEm"
+        FROM corridas c
+        JOIN labirintos l ON l.id = c.labirinto_id
+        WHERE c.status IN (${Prisma.join(STATUS_SUCESSO)})
+          AND c.finalizada_em IS NOT NULL
+        ORDER BY c.labirinto_id, c.finalizada_em - c.iniciada_em, c.iniciada_em
+      ) melhores
+      ORDER BY "labirintoCriadoEm"
+    `;
 
-    for (const lab of labirintos) {
-      // Aceita corridas com status de sucesso ('CONCLUIDA' ou 'FINALIZADA')
-      const runs = await this.prisma.corrida.findMany({
-        where: {
-          labirintoId: lab.id,
-          status: { in: ['CONCLUIDA', 'FINALIZADA'] },
-          finalizadaEm: { not: null },
-        },
-      });
-
-      if (runs.length === 0) continue;
-
-      const runsComDuracao = runs.map((r) => {
-        const duracaoSegundos =
-          (new Date(r.finalizadaEm!).getTime() - new Date(r.iniciadaEm).getTime()) / 1000;
-        return {
-          ...r,
-          labirinto: lab,
-          duracaoSegundos: Number(duracaoSegundos.toFixed(2)),
-        };
-      });
-
-      runsComDuracao.sort((a, b) => a.duracaoSegundos - b.duracaoSegundos);
-
-      const best = runsComDuracao[0];
-      bestRuns.push({
-        labirinto: lab.dimensao,
-        labirintoId: lab.id,
-        corridaId: best.id,
-        status: best.status,
-        tempoSegundos: best.duracaoSegundos,
-        iniciadaEm: best.iniciadaEm,
-        finalizadaEm: best.finalizadaEm,
-      });
-    }
-
-    return bestRuns;
+    return melhores.map((best) => ({
+      labirinto: best.labirinto,
+      labirintoId: best.labirintoId,
+      corridaId: best.corridaId,
+      status: best.status,
+      tempoSegundos: calcularDuracaoSegundos(
+        best.iniciadaEm,
+        best.finalizadaEm,
+      ),
+      iniciadaEm: best.iniciadaEm,
+      finalizadaEm: best.finalizadaEm,
+    }));
   }
 
   /**
@@ -438,18 +493,8 @@ export class RunsService implements OnModuleInit {
 
     if (!run) return null;
 
-    const duracaoSegundos = run.finalizadaEm
-      ? Number(
-          (
-            (new Date(run.finalizadaEm).getTime() - new Date(run.iniciadaEm).getTime()) /
-            1000
-          ).toFixed(2),
-        )
-      : null;
-
     return {
       ...this.mapRunResponse(run),
-      duracaoSegundos,
       totalAmostras: run._count.telemetrias,
     };
   }
@@ -471,16 +516,7 @@ export class RunsService implements OnModuleInit {
     });
   }
 
-  private mapRunResponse(run: any) {
-    const duracaoSegundos = run.finalizadaEm
-      ? Number(
-          (
-            (new Date(run.finalizadaEm).getTime() - new Date(run.iniciadaEm).getTime()) /
-            1000
-          ).toFixed(2),
-        )
-      : null;
-
+  private mapRunResponse(run: Corrida & { labirinto?: { dimensao: string } }) {
     return {
       id: run.id,
       labirintoId: run.labirintoId,
@@ -488,7 +524,9 @@ export class RunsService implements OnModuleInit {
       status: run.status,
       iniciadaEm: run.iniciadaEm,
       finalizadaEm: run.finalizadaEm,
-      duracaoSegundos,
+      duracaoSegundos: run.finalizadaEm
+        ? calcularDuracaoSegundos(run.iniciadaEm, run.finalizadaEm)
+        : null,
     };
   }
 

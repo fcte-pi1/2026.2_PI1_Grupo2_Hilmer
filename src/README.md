@@ -37,11 +37,13 @@ src/
 
 ├── backend/                   \# NestJS: ingestão, eventos, REST e persistência
 
-│   ├── infra/                 \# Docker Compose (PostgreSQL) e scripts de automação
+│   ├── Dockerfile             \# Imagem multi-stage do backend (build → runtime)
 
-│   │   ├── compose.yaml       \# Container Postgres com volume nomeado
+│   ├── infra/                 \# Docker Compose (PostgreSQL + backend) e scripts de automação
 
-│   │   └── scripts/           \# wait-for-postgres.js e create-test-db.js
+│   │   ├── compose.yaml       \# Postgres com volume nomeado e backend, ambos com healthcheck
+
+│   │   └── scripts/           \# wait-for-postgres.js, create-test-db.js, healthcheck.js e bench do histórico
 
 │   ├── prisma/
 
@@ -133,6 +135,10 @@ npm run start:dev
 - `npm run db:migrate`: aplica as migrações no banco de desenvolvimento (`microMouse`).  
 - `npm run db:seed`: executa o cadastro inicial dos labirintos.  
 - `npm run db:studio:dev`: interface web do Prisma no banco de desenvolvimento.
+
+*Rodando tudo em containers (banco + backend, sem Node local):*
+
+- `npm run docker:up` (ou `docker compose -f infra/compose.yaml up -d --build`): sobe o Postgres, espera ele ficar saudável, aplica as migrações e sobe o backend nas portas 3002 (REST) e 3001 (`/ingest`). Detalhes em [`backend/README.md`](backend/README.md#docker-e-healthcheck).
 
 #### 2\. Frontend
 
