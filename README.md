@@ -84,8 +84,8 @@ Instalação do PlatformIO, configuração do Wi-Fi e comandos de compilação e
 | Gerência de projeto | João Felipe Veloso Rosa, Lorena Rege de Sousa Alves |
 | Estruturas | João Felipe Veloso Rosa, Lorena Rege de Sousa Alves, Maria Eduarda Dantas, Jean David Bento dos Santos, Gabrielly Carvalho de Freitas |
 | Energia | Júlia Pêgo de Meneses, Pedro Henrique Conceição de Souza, Kevin Ferreira Nunes de Sousa, Vinícius de Jesus Bessa Fernandes |
-| Hardware | Artur Handow Krauspenhar, Vitor Coelho Costa, Laura de Carvalho Feitosa, Edilson Ribeiro da Cruz Junior |
-| Software | João Pedro de Sousa Silva, Daniel Moura Peres, Eduardo Henrique Coutinho Gurjão, Felipe Fernandes Brandim |
+| Hardware | Artur Handow Krauspenhar, Vitor Coelho Costa, Laura de Carvalho Feitosa |
+| Software | João Pedro de Sousa Silva, Daniel Moura Peres, Eduardo Henrique Coutinho Gurjão, Felipe Fernandes Brandim, Edilson Ribeiro da Cruz Junior |
 
 Matrículas, cursos e contatos estão no [TAP](docs/1%20-%20TAP.md#membros-da-equipe).
 
