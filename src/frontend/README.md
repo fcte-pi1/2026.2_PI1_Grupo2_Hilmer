@@ -29,7 +29,16 @@ cp .env.example .env.local
 npm install
 npm run dev
 ```
+
 ### Testes
 
     npm test                # roda toda a suíte de testes
     npm run test:coverage   # roda com relatório de cobertura (pasta coverage/)
+
+#### Testes das visualizações responsivas
+
+Ficam em `src/__tests__/responsivo/` e simulam celular (360 px), tablet (768 px) e desktop (1280 px) com o helper `src/__tests__/helpers/viewport.ts`. Não precisam do backend nem do robô.
+
+    npm test -- responsivo        # só os testes responsivos e de fallback
+    npm test -- fallback          # só os estados de carregamento, vazio e erro
+    npm run test:coverage         # cobertura (meta: 70% em lib/ e components/)
