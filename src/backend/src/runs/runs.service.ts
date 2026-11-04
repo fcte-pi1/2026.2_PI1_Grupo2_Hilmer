@@ -75,6 +75,13 @@ export class RunsService implements OnModuleInit {
    */
   private readonly finalizedRuns = new Set<string>();
 
+  /**
+   * Promises de inicialização de corrida atualmente em andamento por robotId.
+   * Evita race condition quando pacotes de telemetria chegam enquanto o startRun
+   * ainda aguarda o banco de dados (upsert do labirinto / create da corrida).
+   */
+  private readonly startingRuns = new Map<string, Promise<Corrida | null>>();
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -106,51 +113,69 @@ export class RunsService implements OnModuleInit {
   /**
    * Inicia uma nova corrida para o robô.
    * Se já houver uma corrida ativa em andamento para o robô, encerra-a antes de iniciar a nova.
+   * Registra a Promise de criação em `startingRuns` imediatamente para evitar que pacotes de
+   * telemetria concorrentes criem uma corrida automática duplicada enquanto o banco responde.
    */
   async startRun(options: StartRunOptions = {}): Promise<Corrida | null> {
     const robotKey = options.robotId ?? 'default';
     const dimensao = options.dimensaoLabirinto ?? '4x4';
     const iniciadaEm = options.iniciadaEm ?? new Date();
 
-    try {
-      // 1. Encerra qualquer corrida anterior que ainda esteja aberta para este robô
-      if (this.activeRuns.has(robotKey)) {
-        const previousId = this.activeRuns.get(robotKey)!;
-        await this.finishRun({
-          robotId: robotKey,
-          corridaId: previousId,
-          goalReached: false,
-          finalizadaEm: iniciadaEm,
-        });
+    const previousStart = this.startingRuns.get(robotKey);
+    const startPromise = (async (): Promise<Corrida | null> => {
+      if (previousStart) {
+        await previousStart.catch(() => null);
       }
 
-      // 2. Garante existência do labirinto no banco
-      const labirinto = await this.prisma.labirinto.upsert({
-        where: { dimensao },
-        update: {},
-        create: { dimensao },
-      });
+      try {
+        // 1. Encerra qualquer corrida anterior que ainda esteja aberta para este robô
+        if (this.activeRuns.has(robotKey)) {
+          const previousId = this.activeRuns.get(robotKey)!;
+          await this.finishRun({
+            robotId: robotKey,
+            corridaId: previousId,
+            goalReached: false,
+            finalizadaEm: iniciadaEm,
+          });
+        }
 
-      // 3. Cria a nova corrida com status 'EM_ANDAMENTO'
-      const corrida = await this.prisma.corrida.create({
-        data: {
-          labirintoId: labirinto.id,
-          status: 'EM_ANDAMENTO',
-          iniciadaEm,
-        },
-      });
+        // 2. Garante existência do labirinto no banco
+        const labirinto = await this.prisma.labirinto.upsert({
+          where: { dimensao },
+          update: {},
+          create: { dimensao },
+        });
 
-      this.activeRuns.set(robotKey, corrida.id);
-      this.logger.log(
-        `[RunsService] Corrida iniciada: ${corrida.id} (Robô: ${robotKey}, Labirinto: ${dimensao})`,
-      );
-      return corrida;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.error(
-        `[RunsService] Falha ao iniciar corrida no banco: ${msg}`,
-      );
-      return null;
+        // 3. Cria a nova corrida com status 'EM_ANDAMENTO'
+        const corrida = await this.prisma.corrida.create({
+          data: {
+            labirintoId: labirinto.id,
+            status: 'EM_ANDAMENTO',
+            iniciadaEm,
+          },
+        });
+
+        this.activeRuns.set(robotKey, corrida.id);
+        this.logger.log(
+          `[RunsService] Corrida iniciada: ${corrida.id} (Robô: ${robotKey}, Labirinto: ${dimensao})`,
+        );
+        return corrida;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(
+          `[RunsService] Falha ao iniciar corrida no banco: ${msg}`,
+        );
+        return null;
+      }
+    })();
+
+    this.startingRuns.set(robotKey, startPromise);
+    try {
+      return await startPromise;
+    } finally {
+      if (this.startingRuns.get(robotKey) === startPromise) {
+        this.startingRuns.delete(robotKey);
+      }
     }
   }
 
@@ -159,6 +184,13 @@ export class RunsService implements OnModuleInit {
    */
   async finishRun(options: FinishRunOptions = {}): Promise<Corrida | null> {
     const robotKey = options.robotId ?? 'default';
+    if (
+      !options.corridaId &&
+      !this.activeRuns.has(robotKey) &&
+      this.startingRuns.has(robotKey)
+    ) {
+      await this.startingRuns.get(robotKey);
+    }
     const corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
 
     if (!corridaId) {
@@ -238,7 +270,8 @@ export class RunsService implements OnModuleInit {
 
   /**
    * Registra um ponto de telemetria associado à corrida ativa.
-   * Se nenhuma corrida estiver ativa, cria automaticamente uma corrida padrão para não descartar dados.
+   * Se um `startRun` estiver em andamento para o robô, aguarda sua conclusão antes de prosseguir.
+   * Se nenhuma corrida estiver ativa ou em criação, cria automaticamente uma corrida padrão para não descartar dados.
    */
   async recordTelemetry(
     options: RecordTelemetryOptions,
@@ -247,6 +280,11 @@ export class RunsService implements OnModuleInit {
     let corridaId = options.corridaId ?? this.activeRuns.get(robotKey);
 
     try {
+      if (!corridaId && this.startingRuns.has(robotKey)) {
+        const pendingRun = await this.startingRuns.get(robotKey);
+        corridaId = pendingRun?.id ?? this.activeRuns.get(robotKey);
+      }
+
       if (!corridaId) {
         this.logger.warn(
           `[RunsService] Telemetria recebida sem corrida ativa para ${robotKey}. Iniciando corrida automática.`,

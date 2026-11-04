@@ -99,7 +99,7 @@ O `Dockerfile` é multi-stage: o estágio `build` instala tudo, roda `prisma gen
 ```bash
 cd src/backend
 
-# banco + backend, na ordem certa (o backend espera o Postgres ficar healthy)
+# banco + backend + frontend, na ordem certa (backend espera o Postgres e frontend espera o backend ficar healthy)
 npm run docker:up        # = docker compose -f infra/compose.yaml up -d --build
 docker compose -f infra/compose.yaml ps   # STATUS mostra (healthy)/(unhealthy)
 

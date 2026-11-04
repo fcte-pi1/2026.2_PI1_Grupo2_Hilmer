@@ -39,9 +39,9 @@ src/
 
 │   ├── Dockerfile             \# Imagem multi-stage do backend (build → runtime)
 
-│   ├── infra/                 \# Docker Compose (PostgreSQL + backend) e scripts de automação
+│   ├── infra/                 \# Docker Compose (PostgreSQL + backend + frontend) e scripts de automação
 
-│   │   ├── compose.yaml       \# Postgres com volume nomeado e backend, ambos com healthcheck
+│   │   ├── compose.yaml       \# Orquestração full-stack com healthchecks (Postgres, backend e frontend)
 
 │   │   └── scripts/           \# wait-for-postgres.js, create-test-db.js, healthcheck.js e bench do histórico
 
@@ -70,6 +70,8 @@ src/
 │
 
 ├── frontend/                  \# Next.js: dashboard ao vivo e histórico
+
+│   ├── Dockerfile             \# Imagem multi-stage do frontend (build → runtime)
 
 │   ├── src/app/               \# Páginas e rotas do App Router
 
@@ -136,9 +138,9 @@ npm run start:dev
 - `npm run db:seed`: executa o cadastro inicial dos labirintos.  
 - `npm run db:studio:dev`: interface web do Prisma no banco de desenvolvimento.
 
-*Rodando tudo em containers (banco + backend, sem Node local):*
+*Rodando tudo em containers (banco + backend + frontend, sem Node local):*
 
-- `npm run docker:up` (ou `docker compose -f infra/compose.yaml up -d --build`): sobe o Postgres, espera ele ficar saudável, aplica as migrações e sobe o backend nas portas 3002 (REST) e 3001 (`/ingest`). Detalhes em [`backend/README.md`](backend/README.md#docker-e-healthcheck).
+- `npm run docker:up` (ou `docker compose -f infra/compose.yaml up -d --build`): sobe o Postgres, espera ele ficar saudável, aplica as migrações, sobe o backend nas portas 3002 (REST/Socket.IO) e 3001 (`/ingest`) e, em seguida, sobe o frontend Next.js na porta 3000. Detalhes em [`backend/README.md`](backend/README.md#docker-e-healthcheck).
 
 #### 2\. Frontend
 
