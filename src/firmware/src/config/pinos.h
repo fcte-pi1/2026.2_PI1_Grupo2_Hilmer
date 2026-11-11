@@ -36,7 +36,9 @@ namespace Pinos
     // O sensor da direita (U10) não tem XSHUT: fica sempre ligado pelo pull-up
     // do módulo e deve ter o endereço trocado primeiro na inicialização.
 
-    constexpr uint8_t XSHUT_FRENTE = 17;   // U7  (XSHUT1)
+    // O XSHUT da frente saiu do GPIO17: pelo GPIO17 o sensor não desligava e brigava
+    // com o da direita pelo mesmo endereço (teste no carrinho).
+    constexpr uint8_t XSHUT_FRENTE = 32;   // U7  (XSHUT1)
     constexpr uint8_t XSHUT_ESQUERDA = 33; // U9  (XSHUT3)
 
     // Ponte H L298N (tirar os jumpers de ENA e ENB do módulo para usar o PWM).

@@ -14,7 +14,9 @@
 // Conferir:
 //   - o robô anda reto, sem puxar para um lado;
 //   - para antes de bater na parede;
-//   - a curva fica perto de 90°. Se passar ou faltar, ajustar COMPENSACAO_CURVA_GRAUS.
+//   - a curva fica perto de 90°. O robô ajusta a compensação sozinho a cada curva
+//     (com a USB, o monitor mostra o erro e a compensação). Se a primeira curva ficar
+//     muito longe, mudar o valor inicial COMPENSACAO_CURVA_GRAUS.
 //
 // O robô precisa ficar parado no chão enquanto o LED pisca (calibração do giroscópio).
 
@@ -33,19 +35,48 @@ constexpr uint32_t I2C_FREQUENCIA_HZ = 400000;
 constexpr uint32_t PERIODO_MS = 10;
 
 // Abaixo dessa distância, o sensor da frente indica parede e o robô freia.
-constexpr uint16_t LIMIAR_FRENTE_MM = 200;
+// No centro da célula a frente mede ~49 mm; os ~25 mm a mais cobrem a frenagem.
+constexpr uint16_t LIMIAR_FRENTE_MM = 75;
 // Acima dessa distância (ou sem medida), o lado é considerado livre.
 constexpr uint16_t LIMIAR_LATERAL_MM = 100;
+// Distância de cada sensor lateral até a parede com o robô no centro da célula (medida).
+constexpr uint16_t DISTANCIA_CENTRO_MM = 50;
+// Centralização na reta: as paredes laterais mudam o rumo que o giroscópio segue.
+// Cada mm fora do centro inclina o rumo alvo em GANHO_CENTRO graus para o lado do
+// centro (10 mm -> 3°). Assim o giroscópio ajuda a centralizar em vez de brigar.
+constexpr float GANHO_CENTRO = 0.3f;  // graus por mm
+// Inclinação máxima, para uma leitura ruim não jogar o robô de lado.
+constexpr float INCLINACAO_CENTRO_MAX = 10.0f;  // graus
+// Filtro da inclinação (0 a 1): os sensores variam ±3 mm entre leituras, e sem filtro
+// o rumo alvo pularia ~1° a cada leitura, o que dá trancos pelo termo D do PID.
+constexpr float FILTRO_CENTRO = 0.2f;
 // Depois da curva, a frente só conta como livre com essa folga a mais.
 constexpr uint16_t FOLGA_FRENTE_MM = 30;
 
 constexpr float VELOCIDADE_RETA = 0.30f;
-constexpr float VELOCIDADE_CURVA_MAX = 0.40f;
+// Mais lento que a reta, para o robô escorregar pouco depois do freio. Com o duty
+// máximo já descontando a queda da L298N, 0,32 e 0,24 dão perto do que 0,40 e 0,30
+// davam antes dessa correção.
+constexpr float VELOCIDADE_CURVA_MAX = 0.32f;
 // Abaixo disso o N20 não vence o atrito e o robô para no meio da curva.
-constexpr float VELOCIDADE_CURVA_MIN = 0.30f;
+constexpr float VELOCIDADE_CURVA_MIN = 0.24f;
 // O robô continua girando um pouco depois do freio; a curva termina antes desse tanto.
-constexpr float COMPENSACAO_CURVA_GRAUS = 5.0f;
+// É só o valor inicial: depois de cada curva o robô mede quanto girou depois do freio
+// e ajusta a compensação sozinho (média entre a medida nova e a anterior).
+constexpr float COMPENSACAO_CURVA_GRAUS = 13.0f;
+// Medidas fora dessa faixa (curva que travou, robô empurrado) não entram no ajuste.
+constexpr float COMPENSACAO_MAXIMA_GRAUS = 45.0f;
 constexpr uint32_t TEMPO_PARADO_MS = 500;
+// Ângulo pedido ao giroscópio numa curva de 90° no labirinto (a de 180° usa o dobro).
+// Fica abaixo de 90 porque o giroscópio mede um pouco menos que o giro real; calibrado
+// no labirinto, baixando de 5 em 5 graus até o robô sair reto da curva.
+constexpr float ANGULO_CURVA_GRAUS = 85.0f;
+// A L298N perde cerca de 2 V nos transistores: o motor recebe duty x (bateria - queda).
+constexpr float QUEDA_L298N_V = 2.0f;
+// Parado, o N20 precisa de mais tensão para vencer o atrito do que para continuar girando.
+// No começo de cada movimento as rodas recebem pelo menos essa velocidade por um instante.
+constexpr float VELOCIDADE_ARRANQUE = 0.60f;
+constexpr uint32_t TEMPO_ARRANQUE_MS = 150;
 // Se a curva não terminar nesse tempo (roda travada), desiste e decide de novo.
 constexpr uint32_t TEMPO_MAX_CURVA_MS = 3000;
 // O MPU6050 está montado com o componente para baixo: o giro para a esquerda sai negativo.
@@ -76,10 +107,67 @@ static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCI
 
 // Ângulo de guinada integrado do giroscópio, em graus. Positivo é para a esquerda.
 static float angulo = 0.0f;
-static float rumo_alvo = 0.0f;
-static float curva_alvo = 0.0f;  // ângulo em que a curva atual termina
+// Rumo que o robô deve ter: múltiplos de 90° a partir do rumo do start. A reta segue
+// esse rumo e a curva mira nele, então o erro de uma curva não se acumula nas próximas.
+static float rumo = 0.0f;
+static float inclinacao_filtrada = 0.0f;  // inclinação do rumo pelas paredes, filtrada
+// Uma compensação por sentido: os motores não são iguais, então o robô escorrega
+// diferente depois do freio para cada lado. Índice 0 = esquerda, 1 = direita.
+static float compensacao[2] = {COMPENSACAO_CURVA_GRAUS, COMPENSACAO_CURVA_GRAUS};
+
+static int indice_sentido(float sentido) {
+    return sentido > 0 ? 0 : 1;
+}
+
+// Registro das curvas na memória, para ver depois pela USB ("r" no monitor serial)
+// sem precisar do cabo durante o teste.
+struct RegistroCurva {
+    uint32_t t_ms;
+    float graus;          // curva pedida
+    float erro_final;     // onde parou em relação ao rumo
+    float giro_apos;      // quanto girou depois do freio
+    float compensacao;    // compensação usada nessa curva
+};
+constexpr int MAX_REGISTROS = 40;
+static RegistroCurva registros[MAX_REGISTROS];
+static int total_registros = 0;
+static float graus_curva_atual = 0.0f;
+static float compensacao_usada = 0.0f;
+
+static void imprimir_registros() {
+    Serial.printf("\n===== %d curvas registradas =====\n", total_registros);
+    Serial.println(" n   t(s)   curva   erro final   giro após freio   compensação");
+    int inicio = total_registros > MAX_REGISTROS ? total_registros - MAX_REGISTROS : 0;
+    for (int i = inicio; i < total_registros; i++) {
+        const RegistroCurva &r = registros[i % MAX_REGISTROS];
+        Serial.printf("%2d %6.1f  %+6.0f    %+6.1f       %6.1f          %6.1f\n", i + 1,
+                      r.t_ms / 1000.0f, r.graus, r.erro_final, r.giro_apos, r.compensacao);
+    }
+    Serial.printf("Compensação atual: esquerda %.1f, direita %.1f\n", compensacao[0],
+                  compensacao[1]);
+}
+// Ângulo no momento do freio da curva e sentido dela (+1 esquerda, -1 direita), para
+// medir quanto o robô girou depois do freio.
+static bool medindo_curva = false;
+static float angulo_freio = 0.0f;
+static float sentido_curva = 0.0f;
 static uint32_t inicio_curva = 0;
 static uint32_t inicio_parado = 0;
+static uint32_t inicio_movimento = 0;
+
+// Manda a velocidade aos motores. Logo depois de sair do repouso, cada roda que
+// deve girar recebe pelo menos VELOCIDADE_ARRANQUE, no mesmo sentido.
+static void comandar(float esquerdo, float direito) {
+    if (millis() - inicio_movimento < TEMPO_ARRANQUE_MS) {
+        if (esquerdo != 0.0f) {
+            esquerdo = copysignf(fmaxf(fabsf(esquerdo), VELOCIDADE_ARRANQUE), esquerdo);
+        }
+        if (direito != 0.0f) {
+            direito = copysignf(fmaxf(fabsf(direito), VELOCIDADE_ARRANQUE), direito);
+        }
+    }
+    motores_definir_velocidade(esquerdo, direito);
+}
 
 static void atualizar_angulo() {
     static uint32_t ultimo_us = micros();
@@ -99,7 +187,8 @@ static bool bateria_ok() {
     if (!energia_ler(tensao, corrente)) {
         return true;  // sem INA219, segue com o duty máximo padrão
     }
-    motores_definir_duty_maximo(bateria_duty_maximo(MOTOR_TENSAO_NOMINAL, tensao));
+    motores_definir_duty_maximo(
+        bateria_duty_maximo(MOTOR_TENSAO_NOMINAL, tensao - QUEDA_L298N_V));
     return bateria_estado(tensao) != BATERIA_BLOQUEADA;
 }
 
@@ -120,23 +209,29 @@ static bool comando_start() {
     botao_anterior = botao;
 
     while (Serial.available() > 0) {
-        if (Serial.read() == 's') {
+        char comando = Serial.read();
+        if (comando == 's') {
             apertou = true;
+        } else if (comando == 'r') {
+            imprimir_registros();
         }
     }
     return apertou;
 }
 
 static void comecar_reta() {
-    rumo_alvo = angulo;
     pid_rumo.zerar();
+    inclinacao_filtrada = 0.0f;
+    inicio_movimento = millis();
     estado = ANDANDO;
     Serial.printf("Andando. frente %u mm\n", distancias.frente);
 }
 
 static void comecar_curva(float graus) {
-    curva_alvo = angulo + graus;
+    rumo += graus;
+    graus_curva_atual = graus;
     inicio_curva = millis();
+    inicio_movimento = millis();
     estado = VIRANDO;
     Serial.printf("Virando %.0f graus\n", graus);
 }
@@ -147,17 +242,55 @@ static void parar() {
     estado = PARADO;
 }
 
+// Com o robô já parado depois de uma curva: quanto ele girou depois do freio é a
+// compensação certa para a próxima curva.
+static void ajustar_compensacao() {
+    if (!medindo_curva) {
+        return;
+    }
+    medindo_curva = false;
+    float giro_apos_freio = (angulo - angulo_freio) * sentido_curva;
+    float &comp = compensacao[indice_sentido(sentido_curva)];
+    Serial.printf("Curva %s: parou a %+.1f graus do rumo. Girou %.1f graus depois do freio.",
+                  sentido_curva > 0 ? "esquerda" : "direita", angulo - rumo, giro_apos_freio);
+    if (giro_apos_freio >= 0.0f && giro_apos_freio <= COMPENSACAO_MAXIMA_GRAUS) {
+        comp = 0.5f * comp + 0.5f * giro_apos_freio;
+    }
+    Serial.printf(" Compensação agora %.1f graus.\n", comp);
+
+    RegistroCurva &r = registros[total_registros % MAX_REGISTROS];
+    r = {millis(), graus_curva_atual, angulo - rumo, giro_apos_freio, compensacao_usada};
+    total_registros++;
+}
+
 // Com o robô parado, escolhe a próxima ação pelas paredes.
 static void decidir() {
     if (distancias.frente > LIMIAR_FRENTE_MM + FOLGA_FRENTE_MM) {
         comecar_reta();
     } else if (lado_livre(distancias.esquerda)) {
-        comecar_curva(90.0f);
+        comecar_curva(ANGULO_CURVA_GRAUS);
     } else if (lado_livre(distancias.direita)) {
-        comecar_curva(-90.0f);
+        comecar_curva(-ANGULO_CURVA_GRAUS);
     } else {
-        comecar_curva(180.0f);
+        comecar_curva(2.0f * ANGULO_CURVA_GRAUS);
     }
+}
+
+// Inclinação do rumo, em graus, para levar o robô ao centro do corredor pelas paredes
+// laterais. Positivo: perto demais da parede da direita, então inclina para a esquerda.
+static float inclinacao_centro() {
+    bool parede_esquerda = !lado_livre(distancias.esquerda);
+    bool parede_direita = !lado_livre(distancias.direita);
+    float erro_mm = 0.0f;
+    if (parede_esquerda && parede_direita) {
+        // No centro as duas distâncias são iguais.
+        erro_mm = (float)distancias.esquerda - (float)distancias.direita;
+    } else if (parede_esquerda) {
+        erro_mm = (float)distancias.esquerda - DISTANCIA_CENTRO_MM;
+    } else if (parede_direita) {
+        erro_mm = DISTANCIA_CENTRO_MM - (float)distancias.direita;
+    }
+    return constrain(GANHO_CENTRO * erro_mm, -INCLINACAO_CENTRO_MAX, INCLINACAO_CENTRO_MAX);
 }
 
 static void andar() {
@@ -168,28 +301,36 @@ static void andar() {
         return;
     }
     // Correção positiva: o robô desviou para a direita e precisa virar para a esquerda.
-    float correcao = pid_rumo.atualizar(rumo_alvo, angulo);
-    motores_definir_velocidade(VELOCIDADE_RETA - correcao, VELOCIDADE_RETA + correcao);
+    inclinacao_filtrada += FILTRO_CENTRO * (inclinacao_centro() - inclinacao_filtrada);
+    float correcao = pid_rumo.atualizar(rumo + inclinacao_filtrada, angulo);
+    comandar(VELOCIDADE_RETA - correcao, VELOCIDADE_RETA + correcao);
 }
 
 static void virar() {
-    float falta = curva_alvo - angulo;
-    if (fabsf(falta) <= COMPENSACAO_CURVA_GRAUS) {
-        Serial.printf("Curva concluída. ângulo %.1f\n", angulo);
+    float falta = rumo - angulo;
+    float sentido = falta > 0 ? 1.0f : -1.0f;
+    float limite = compensacao[indice_sentido(sentido)];
+    if (fabsf(falta) <= limite) {
+        angulo_freio = angulo;
+        sentido_curva = sentido;
+        compensacao_usada = limite;
+        medindo_curva = true;
         parar();
         return;
     }
     if (millis() - inicio_curva > TEMPO_MAX_CURVA_MS) {
         Serial.printf("Curva travou faltando %.1f graus. Decidindo de novo.\n", falta);
+        // O rumo volta a ser o atual, para a reta seguinte não tentar terminar a curva.
+        rumo = angulo;
         parar();
         return;
     }
     // Desacelera perto do fim para não passar do ângulo.
     float velocidade = constrain(fabsf(falta) * 0.01f, VELOCIDADE_CURVA_MIN, VELOCIDADE_CURVA_MAX);
     if (falta > 0) {
-        motores_definir_velocidade(-velocidade, velocidade);  // gira para a esquerda
+        comandar(-velocidade, velocidade);  // gira para a esquerda
     } else {
-        motores_definir_velocidade(velocidade, -velocidade);  // gira para a direita
+        comandar(velocidade, -velocidade);  // gira para a direita
     }
 }
 
@@ -248,6 +389,8 @@ void loop() {
                 return;
             }
             motores_habilitar(true);
+            rumo = angulo;  // o rumo do start é a referência das curvas
+            medindo_curva = false;
             decidir();
         } else {
             motores_frear();
@@ -272,6 +415,7 @@ void loop() {
                 estado = AGUARDANDO;
                 Serial.println("Bateria abaixo de 6,6 V. Teste encerrado.");
             } else {
+                ajustar_compensacao();
                 decidir();
             }
         }
