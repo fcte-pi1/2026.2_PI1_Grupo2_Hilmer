@@ -40,6 +40,11 @@ static bool iniciar_sensor(Sensor &sensor, TwoWire &wire, uint8_t endereco) {
     if (sensor.vl53.last_status != 0 || !sensor.vl53.init()) {
         return false;
     }
+    // O init() da biblioteca não confere todas as transações. Com o I2C sem resposta,
+    // ele termina com valores zerados, e o setMeasurementTimingBudget divide por zero.
+    if (sensor.vl53.last_status != 0) {
+        return false;
+    }
     if (!sensor.vl53.setMeasurementTimingBudget(ORCAMENTO_MEDIDA_US)) {
         return false;
     }
