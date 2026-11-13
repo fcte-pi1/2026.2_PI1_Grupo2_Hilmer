@@ -7,6 +7,7 @@ describe('RunsService', () => {
   let service: RunsService;
   let prisma: {
     $queryRaw: jest.Mock;
+    $transaction: jest.Mock;
     labirinto: {
       upsert: jest.Mock;
       findFirst: jest.Mock;
@@ -16,6 +17,7 @@ describe('RunsService', () => {
       create: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
+      deleteMany: jest.Mock;
       findFirst: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
@@ -41,6 +43,14 @@ describe('RunsService', () => {
   beforeEach(async () => {
     prisma = {
       $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn((callback) =>
+        callback({
+          corrida: {
+            findMany: jest.fn().mockResolvedValue([{ id: 'run-1' }]),
+            deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+          },
+        }),
+      ),
       labirinto: {
         upsert: jest.fn().mockResolvedValue(mockLabirinto),
         findFirst: jest.fn().mockResolvedValue({ id: mockLabirinto.id }),
@@ -55,6 +65,7 @@ describe('RunsService', () => {
           finalizadaEm: data.finalizadaEm,
         })),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         findFirst: jest.fn().mockResolvedValue(mockCorrida),
         findMany: jest.fn().mockResolvedValue([mockCorrida]),
         findUnique: jest.fn().mockResolvedValue(mockCorrida),
