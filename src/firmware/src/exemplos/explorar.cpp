@@ -49,11 +49,33 @@ constexpr bool LABIRINTO_A_DIREITA = false;
 
 // Parado no centro, a parede da frente mede ~49 mm e a da célula seguinte ~230 mm.
 constexpr uint16_t LIMIAR_PAREDE_FRENTE_MM = 120;
+
+// Alinhamento antes de virar: com parede na frente, o robô anda para a frente ou para
+// trás até a parede ficar na distância do centro da célula. Assim a curva acontece no
+// centro e a ponta do robô não raspa na parede (principalmente no 180°).
+constexpr uint16_t DISTANCIA_FRENTE_CENTRO_MM = 49;
+constexpr uint16_t TOLERANCIA_ALINHAMENTO_MM = 6;
+constexpr float GANHO_ALINHAMENTO = 0.01f;  // velocidade por mm de erro
+// Abaixo disso o N20 não sai do lugar; acima, passa do ponto (o sensor mede a cada ~20 ms).
+constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.24f;
+constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.30f;
+constexpr uint32_t TEMPO_MAX_ALINHAMENTO_MS = 1500;
 // Trava de segurança: um labirinto 4x4 não precisa de tantas células.
 constexpr int MAX_CELULAS = 60;
 
-// Valor calibrado no exemplo_celula.
+// Valor calibrado no exemplo_celula. É só o valor inicial: o robô se recalibra pela
+// parede da frente (ver calibrar_celula) e guarda o valor na flash entre corridas.
 constexpr int32_t CONTAGENS_POR_CELULA = 1350;
+constexpr float TAMANHO_CELULA_MM = 180.0f;
+// A calibração só usa a parede da frente até essa distância: mais longe, o VL53L0X
+// erra mais e a medida piora em vez de melhorar.
+constexpr uint16_t ALCANCE_CALIBRACAO_MM = 500;
+// Para contar quantas células o robô andou basta errar menos de meia célula (90 mm),
+// então a parede da frente vale até mais longe.
+constexpr uint16_t ALCANCE_CONTAGEM_MM = 1000;
+// Uma medida que dá mais de 25% longe do valor inicial é descartada (roda escorregou,
+// leitura ruim): o valor calibrado nunca sai dessa faixa.
+constexpr float VARIACAO_MAXIMA_CALIBRACAO = 0.25f;
 constexpr int32_t COMPENSACAO_FREIO_CONTAGENS = 100;
 constexpr int32_t COMPENSACAO_FREIO_MAXIMA = 400;
 
@@ -100,8 +122,10 @@ enum Estado {
     AGUARDANDO,
     ANDANDO,
     VIRANDO,
-    PARADO_CELULA,  // parado no centro de uma célula: lê paredes e decide
-    PARADO_CURVA,   // parado depois de uma curva: anda a célula
+    ALINHANDO,        // ajusta a distância até a parede da frente antes de virar
+    PARADO_CELULA,    // parado no centro de uma célula: lê paredes e decide
+    PARADO_ALINHADO,  // parado depois do alinhamento: faz a curva pendente
+    PARADO_CURVA,     // parado depois de uma curva: anda a célula (ou a 2ª metade do 180°)
     CHEGOU,
     ERRO,
 };
@@ -128,11 +152,19 @@ static bool medindo_curva = false;
 static float angulo_freio = 0.0f;
 static float sentido_curva = 0.0f;
 
+static int32_t contagens_por_celula = CONTAGENS_POR_CELULA;
+static uint16_t frente_inicio_celula = DISTANCIA_INVALIDA;  // lida parado, antes de andar
 static int32_t compensacao_freio = COMPENSACAO_FREIO_CONTAGENS;
 static int32_t contagem_freio = 0;
 static bool parou_pela_parede = false;
 
+// Curva que espera o fim do alinhamento, e a segunda metade do 180°, que é feito como
+// duas curvas de 90° com um alinhamento no meio (a parede do lado vira a da frente).
+static float curva_pendente = 0.0f;
+static float segunda_metade_180 = 0.0f;
+
 static uint32_t inicio_curva = 0;
+static uint32_t inicio_alinhamento = 0;
 static uint32_t inicio_parado = 0;
 static uint32_t inicio_movimento = 0;
 
@@ -236,9 +268,11 @@ static void imprimir_registro() {
 
 // ---------------------------------------------------------------------------
 
-// Média das duas rodas: cancela o efeito de o robô girar um pouco durante a reta.
-static int32_t contagem_media() {
-    return (encoders_contagem_esquerda() + encoders_contagem_direita()) / 2;
+// Distância andada na reta, em contagens: a roda que mais contou. Na reta as duas
+// contam quase igual, e se um encoder falhar (fio solto) o robô continua medindo pelo
+// outro, em vez de achar que andou metade e passar direto das células.
+static int32_t contagem_andada() {
+    return max(encoders_contagem_esquerda(), encoders_contagem_direita());
 }
 
 // Manda a velocidade aos motores. Logo depois de sair do repouso, cada roda que
@@ -356,6 +390,8 @@ static void parar(Estado proximo) {
 }
 
 static void comecar_celula() {
+    // O robô ainda está parado: a leitura da frente é boa para a calibração.
+    frente_inicio_celula = distancias.frente;
     encoders_zerar();
     pid_rumo.zerar();
     inclinacao_filtrada = 0.0f;
@@ -365,8 +401,8 @@ static void comecar_celula() {
 
 static void andar() {
     bool parede = distancias.frente < LIMIAR_FRENTE_MM;
-    if (parede || contagem_media() >= CONTAGENS_POR_CELULA - compensacao_freio) {
-        contagem_freio = contagem_media();
+    if (parede || contagem_andada() >= contagens_por_celula - compensacao_freio) {
+        contagem_freio = contagem_andada();
         parou_pela_parede = parede;
         parar(PARADO_CELULA);
         return;
@@ -382,10 +418,38 @@ static void ajustar_freio() {
     if (parou_pela_parede) {
         return;  // não andou uma célula inteira, a medida não serve
     }
-    int32_t apos_freio = contagem_media() - contagem_freio;
+    int32_t apos_freio = contagem_andada() - contagem_freio;
     if (apos_freio >= 0 && apos_freio <= COMPENSACAO_FREIO_MAXIMA) {
         compensacao_freio = (compensacao_freio + apos_freio) / 2;
     }
+}
+
+// Com o robô parado depois da célula: se havia parede na frente no começo e no fim,
+// o sensor da frente mede quanto ele andou de verdade, em mm. Com as contagens dos
+// encoders nesse trecho, dá para corrigir as contagens por célula.
+static void calibrar_celula() {
+    uint16_t frente_fim = distancias.frente;
+    if (frente_inicio_celula > ALCANCE_CALIBRACAO_MM || frente_fim == DISTANCIA_INVALIDA ||
+        frente_fim >= frente_inicio_celula) {
+        return;  // sem parede na frente ao alcance, nos dois momentos
+    }
+    float andou_mm = frente_inicio_celula - frente_fim;
+    if (andou_mm < 0.5f * TAMANHO_CELULA_MM || andou_mm > 1.5f * TAMANHO_CELULA_MM) {
+        return;  // não parece uma célula: leitura ruim ou robô empurrado
+    }
+    int32_t medida = lroundf(contagem_andada() * TAMANHO_CELULA_MM / andou_mm);
+    int32_t minimo = lroundf(CONTAGENS_POR_CELULA * (1.0f - VARIACAO_MAXIMA_CALIBRACAO));
+    int32_t maximo = lroundf(CONTAGENS_POR_CELULA * (1.0f + VARIACAO_MAXIMA_CALIBRACAO));
+    if (medida < minimo || medida > maximo) {
+        Serial.printf("Calibração descartada: %ld contagens por célula.\n", (long)medida);
+        return;
+    }
+    // Média entre a medida nova e o valor atual, para uma leitura ruim não pesar demais.
+    contagens_por_celula = (contagens_por_celula + medida) / 2;
+    memoria.putInt("celula", contagens_por_celula);
+    Serial.printf("Calibração pela parede: andou %.0f mm em %ld contagens. "
+                  "Contagens por célula agora %ld.\n",
+                  andou_mm, (long)contagem_andada(), (long)contagens_por_celula);
 }
 
 // graus > 0 vira para a esquerda.
@@ -435,6 +499,34 @@ static void ajustar_compensacao() {
     float &comp = compensacao[sentido_curva > 0 ? 0 : 1];
     if (giro_apos_freio >= 0.0f && giro_apos_freio <= COMPENSACAO_MAXIMA_GRAUS) {
         comp = 0.5f * comp + 0.5f * giro_apos_freio;
+    }
+}
+
+// Anda para a frente ou para trás até a parede da frente ficar a
+// DISTANCIA_FRENTE_CENTRO_MM. Sem a curva do rumo: o trecho é de poucos mm.
+static void alinhar() {
+    uint16_t frente = distancias.frente;
+    float erro = (float)frente - DISTANCIA_FRENTE_CENTRO_MM;  // > 0: longe demais
+    bool acabou = frente == DISTANCIA_INVALIDA || fabsf(erro) <= TOLERANCIA_ALINHAMENTO_MM ||
+                  millis() - inicio_alinhamento > TEMPO_MAX_ALINHAMENTO_MS;
+    if (acabou) {
+        parar(PARADO_ALINHADO);
+        return;
+    }
+    float velocidade = constrain(fabsf(erro) * GANHO_ALINHAMENTO, VELOCIDADE_ALINHAMENTO_MIN,
+                                 VELOCIDADE_ALINHAMENTO_MAX);
+    velocidade = copysignf(velocidade, erro);
+    motores_definir_velocidade(velocidade, velocidade);
+}
+
+// Faz a curva no centro da célula: com parede na frente, alinha antes de virar.
+static void preparar_curva(float graus) {
+    if (distancias.frente < LIMIAR_PAREDE_FRENTE_MM) {
+        curva_pendente = graus;
+        inicio_alinhamento = millis();
+        estado = ALINHANDO;
+    } else {
+        comecar_curva(graus);
     }
 }
 
@@ -512,19 +604,54 @@ static void decidir() {
     if (passos == 0) {
         comecar_celula();
     } else if (passos == 1) {
-        comecar_curva(-ANGULO_CURVA_GRAUS);
+        preparar_curva(-ANGULO_CURVA_GRAUS);
     } else if (passos == 3) {
-        comecar_curva(ANGULO_CURVA_GRAUS);
+        preparar_curva(ANGULO_CURVA_GRAUS);
     } else {
-        comecar_curva(2.0f * ANGULO_CURVA_GRAUS);
+        // 180°: duas curvas de 90° para a esquerda. Entre elas, a parede que estava do
+        // lado fica na frente e o alinhamento centraliza o robô também nesse eixo.
+        segunda_metade_180 = ANGULO_CURVA_GRAUS;
+        preparar_curva(ANGULO_CURVA_GRAUS);
     }
+}
+
+// Quantas células o robô andou no último trecho. Com parede na frente ao alcance no
+// começo e no fim, o sensor da frente responde melhor que os encoders (que escorregam
+// ou podem falhar); sem ela, vale o encoder.
+static int celulas_no_trecho() {
+    uint16_t frente_fim = distancias.frente;
+    if (frente_inicio_celula <= ALCANCE_CONTAGEM_MM && frente_fim != DISTANCIA_INVALIDA) {
+        float andou_mm = (float)frente_inicio_celula - (float)frente_fim;
+        return max(0L, lroundf(andou_mm / TAMANHO_CELULA_MM));
+    }
+    return contagem_andada() >= contagens_por_celula / 2 ? 1 : 0;
 }
 
 // Robô parado depois de andar uma célula: atualiza a posição e decide.
 static void chegou_na_celula() {
-    ajustar_freio();
-    avancar(direcao, pos_x, pos_y);
-    celulas_andadas++;
+    int celulas = celulas_no_trecho();
+    if (celulas == 0) {
+        // Parou pela parede quase sem sair do lugar: ela estava logo na frente e não foi
+        // vista antes de virar. O robô continua na mesma célula; o decidir() marca essa
+        // parede e escolhe outro caminho. Sem isso, a posição avançaria sem o robô sair
+        // do lugar e o mapa ficaria todo deslocado.
+        Serial.printf("Parede logo na frente (%u mm): continua em (%d,%d).\n",
+                      distancias.frente, pos_x, pos_y);
+        decidir();
+        return;
+    }
+    if (celulas > 1) {
+        // Passou de células sem parar (encoder com problema): a posição acompanha o que
+        // o sensor da frente mediu. As paredes laterais dessas células ficam sem marcar.
+        Serial.printf("Andou %d células sem parar: confira os encoders.\n", celulas);
+    } else {
+        ajustar_freio();
+        calibrar_celula();
+    }
+    for (int i = 0; i < celulas; i++) {
+        avancar(direcao, pos_x, pos_y);
+        celulas_andadas++;
+    }
     if (!labirinto.dentro(pos_x, pos_y)) {
         encerrar(FIM_FORA_DO_MAPA, ERRO,
                  "Posição fora do mapa: confira LARGURA, ALTURA e LABIRINTO_A_DIREITA.");
@@ -549,6 +676,13 @@ void setup() {
     if (memoria.getBytesLength("log") > 0) {
         imprimir_registro();
     }
+    // Volta com a calibração da última corrida, se ela estiver dentro da faixa.
+    int32_t salvo = memoria.getInt("celula", CONTAGENS_POR_CELULA);
+    if (fabsf(salvo - CONTAGENS_POR_CELULA) <=
+        VARIACAO_MAXIMA_CALIBRACAO * CONTAGENS_POR_CELULA) {
+        contagens_por_celula = salvo;
+    }
+    Serial.printf("Contagens por célula: %ld\n", (long)contagens_por_celula);
 
     if (!encoders_iniciar(ENCODER_ESQUERDO, ENCODER_DIREITO)) {
         Serial.println("Erro: falha ao configurar o PCNT dos encoders");
@@ -610,6 +744,7 @@ void loop() {
             }
             rumo = angulo;
             medindo_curva = false;
+            segunda_metade_180 = 0.0f;
             motores_habilitar(true);
             digitalWrite(Pinos::LED_STATUS, HIGH);
             decidir();
@@ -637,6 +772,14 @@ void loop() {
     case VIRANDO:
         virar();
         break;
+    case ALINHANDO:
+        alinhar();
+        break;
+    case PARADO_ALINHADO:
+        if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
+            comecar_curva(curva_pendente);
+        }
+        break;
     case PARADO_CELULA:
         // Espera o robô assentar e os sensores medirem de novo antes de ler as paredes.
         if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
@@ -650,8 +793,14 @@ void loop() {
     case PARADO_CURVA:
         if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
             ajustar_compensacao();
-            direcao = direcao_alvo;
-            comecar_celula();
+            if (segunda_metade_180 != 0.0f) {
+                float graus = segunda_metade_180;
+                segunda_metade_180 = 0.0f;
+                preparar_curva(graus);
+            } else {
+                direcao = direcao_alvo;
+                comecar_celula();
+            }
         }
         break;
     }
