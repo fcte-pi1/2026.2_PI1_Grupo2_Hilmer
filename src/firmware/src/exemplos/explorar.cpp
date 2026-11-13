@@ -12,7 +12,8 @@
 // Como colocar o robô: no canto de saída, centralizado na célula e virado para a
 // saída do beco. Antes de gravar, ajustar LARGURA, ALTURA e LABIRINTO_A_DIREITA.
 // Funciona sem a USB: o LED acende quando o robô está pronto, e o botão BOOT da placa
-// (ou "s" pelo monitor serial) começa e para. Pelo monitor, "m" mostra o mapa.
+// (ou "s" pelo monitor serial) começa e para. Pelo monitor, "m" mostra o mapa e "c"
+// zera a calibração das contagens por célula.
 //
 // LED no fim: piscando devagar, chegou ao objetivo; piscando rápido, parou por erro.
 // Registro sem USB e sem cartão SD: cada célula fica gravada na flash da ESP, que não
@@ -53,12 +54,16 @@ constexpr uint16_t LIMIAR_PAREDE_FRENTE_MM = 120;
 // Alinhamento antes de virar: com parede na frente, o robô anda para a frente ou para
 // trás até a parede ficar na distância do centro da célula. Assim a curva acontece no
 // centro e a ponta do robô não raspa na parede (principalmente no 180°).
-constexpr uint16_t DISTANCIA_FRENTE_CENTRO_MM = 49;
+constexpr uint16_t DISTANCIA_FRENTE_CENTRO_MM = 54;
 constexpr uint16_t TOLERANCIA_ALINHAMENTO_MM = 6;
 constexpr float GANHO_ALINHAMENTO = 0.01f;  // velocidade por mm de erro
-// Abaixo disso o N20 não sai do lugar; acima, passa do ponto (o sensor mede a cada ~20 ms).
-constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.24f;
-constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.30f;
+// Abaixo disso o N20 para no meio do ajuste; acima, passa do ponto (o sensor mede a
+// cada ~20 ms).
+constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.30f;
+constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.38f;
+// Parado, o N20 não sai do lugar com a velocidade do ajuste: no começo ele recebe
+// VELOCIDADE_ARRANQUE por um instante, mais curto que o da reta para não passar do ponto.
+constexpr uint32_t TEMPO_IMPULSO_ALINHAMENTO_MS = 60;
 constexpr uint32_t TEMPO_MAX_ALINHAMENTO_MS = 1500;
 // Trava de segurança: um labirinto 4x4 não precisa de tantas células.
 constexpr int MAX_CELULAS = 60;
@@ -73,9 +78,10 @@ constexpr uint16_t ALCANCE_CALIBRACAO_MM = 500;
 // Para contar quantas células o robô andou basta errar menos de meia célula (90 mm),
 // então a parede da frente vale até mais longe.
 constexpr uint16_t ALCANCE_CONTAGEM_MM = 1000;
-// Uma medida que dá mais de 25% longe do valor inicial é descartada (roda escorregou,
-// leitura ruim): o valor calibrado nunca sai dessa faixa.
-constexpr float VARIACAO_MAXIMA_CALIBRACAO = 0.25f;
+// Uma medida que dá mais de 10% longe do valor inicial é descartada (roda escorregou,
+// leitura ruim): o valor calibrado nunca sai dessa faixa. 10% são 18 mm por célula;
+// com 25%, leituras ruins dos sensores levavam o robô a parar entre células.
+constexpr float VARIACAO_MAXIMA_CALIBRACAO = 0.10f;
 constexpr int32_t COMPENSACAO_FREIO_CONTAGENS = 100;
 constexpr int32_t COMPENSACAO_FREIO_MAXIMA = 400;
 
@@ -99,6 +105,15 @@ constexpr uint32_t TEMPO_ARRANQUE_MS = 150;
 constexpr uint32_t TEMPO_MAX_CURVA_MS = 3000;
 // O MPU6050 está montado com o componente para baixo: o giro para a esquerda sai negativo.
 constexpr bool IMU_INVERTIDA = true;
+
+// Correção do zero do giroscópio durante a corrida. O zero medido no boot muda com o
+// tempo e a temperatura, e o erro integrado faz as curvas saírem tortas depois de
+// algumas dezenas de segundos. Parado no centro das células, o robô não gira: o que o
+// giroscópio mede ali é o erro de zero, que é medido de novo a cada parada.
+constexpr uint32_t TEMPO_ASSENTAR_MS = 250;   // espera o balanço do freio passar
+constexpr int AMOSTRAS_ZERO = 20;             // 0,2 s de leituras por medida
+constexpr float GIRO_MAXIMO_PARADO = 2.0f;    // graus/s; acima disso o robô está se mexendo
+constexpr float FILTRO_ZERO = 0.5f;           // peso da medida nova
 
 // Botão BOOT da própria placa (GPIO0, com pull-up na placa). Só influi no boot, então
 // depois da inicialização serve de botão de partida, no lugar do SW2 (GPIO15).
@@ -143,6 +158,9 @@ static uint32_t inicio_corrida = 0;
 
 // Ângulo de guinada integrado do giroscópio, em graus. Positivo é para a esquerda.
 static float angulo = 0.0f;
+static float erro_zero_giro = 0.0f;  // graus/s, medido nas paradas e descontado do giro
+static float soma_zero = 0.0f;
+static int amostras_zero = 0;
 // Rumo que o robô deve ter: múltiplos de ANGULO_CURVA_GRAUS a partir do start.
 static float rumo = 0.0f;
 static float inclinacao_filtrada = 0.0f;
@@ -285,6 +303,13 @@ static void comandar(float esquerdo, float direito) {
     motores_definir_velocidade(esquerdo, direito);
 }
 
+// Parado no chão, com os motores desligados ou freados há pelo menos TEMPO_ASSENTAR_MS.
+static bool parado_assentado() {
+    bool parado = estado == AGUARDANDO || estado == PARADO_CELULA ||
+                  estado == PARADO_CURVA || estado == PARADO_ALINHADO;
+    return parado && (estado == AGUARDANDO || millis() - inicio_parado >= TEMPO_ASSENTAR_MS);
+}
+
 static void atualizar_angulo() {
     static uint32_t ultimo_us = micros();
     uint32_t agora_us = micros();
@@ -292,8 +317,25 @@ static void atualizar_angulo() {
     ultimo_us = agora_us;
 
     float giro_z;
-    if (imu_ler_giro_z(giro_z)) {
-        angulo += (IMU_INVERTIDA ? -giro_z : giro_z) * dt;
+    if (!imu_ler_giro_z(giro_z)) {
+        return;
+    }
+    giro_z = (IMU_INVERTIDA ? -giro_z : giro_z) - erro_zero_giro;
+
+    if (!parado_assentado() || fabsf(giro_z) > GIRO_MAXIMO_PARADO) {
+        // Em movimento (ou alguém mexeu no robô parado): integra normalmente.
+        angulo += giro_z * dt;
+        soma_zero = 0.0f;
+        amostras_zero = 0;
+        return;
+    }
+    // Parado: o ângulo não muda, e o que o giroscópio mede é o erro de zero.
+    soma_zero += giro_z;
+    amostras_zero++;
+    if (amostras_zero >= AMOSTRAS_ZERO) {
+        erro_zero_giro += FILTRO_ZERO * soma_zero / amostras_zero;
+        soma_zero = 0.0f;
+        amostras_zero = 0;
     }
 }
 
@@ -356,6 +398,12 @@ static bool comando_start() {
             apertou = true;
         } else if (comando == 'r') {
             imprimir_registro();
+        } else if (comando == 'c') {
+            // Volta a calibração da célula para o valor medido no exemplo_celula.
+            contagens_por_celula = CONTAGENS_POR_CELULA;
+            memoria.remove("celula");
+            Serial.printf("Calibração zerada: %ld contagens por célula.\n",
+                          (long)contagens_por_celula);
         } else if (comando == 'm') {
             floodfill.calcular();
             imprimir_mapa();
@@ -515,6 +563,9 @@ static void alinhar() {
     }
     float velocidade = constrain(fabsf(erro) * GANHO_ALINHAMENTO, VELOCIDADE_ALINHAMENTO_MIN,
                                  VELOCIDADE_ALINHAMENTO_MAX);
+    if (millis() - inicio_alinhamento < TEMPO_IMPULSO_ALINHAMENTO_MS) {
+        velocidade = VELOCIDADE_ARRANQUE;
+    }
     velocidade = copysignf(velocidade, erro);
     motores_definir_velocidade(velocidade, velocidade);
 }
@@ -541,6 +592,7 @@ static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo) {
     estado = final;
     registrar(codigo, 0);
     Serial.println(motivo);
+    Serial.printf("Correção do zero do giroscópio: %.3f graus/s\n", erro_zero_giro);
     floodfill.calcular();
     imprimir_mapa();
 }
@@ -608,10 +660,17 @@ static void decidir() {
     } else if (passos == 3) {
         preparar_curva(ANGULO_CURVA_GRAUS);
     } else {
-        // 180°: duas curvas de 90° para a esquerda. Entre elas, a parede que estava do
+        // 180°: duas curvas de 90° para o mesmo lado. Entre elas, a parede que estava do
         // lado fica na frente e o alinhamento centraliza o robô também nesse eixo.
-        segunda_metade_180 = ANGULO_CURVA_GRAUS;
-        preparar_curva(ANGULO_CURVA_GRAUS);
+        // O lado é o da parede mais longe: com o robô fora do centro, girar para o lado
+        // mais perto faz a ponta raspar na parede. Sem leitura (65535) conta como longe.
+        float graus = distancias.esquerda >= distancias.direita ? ANGULO_CURVA_GRAUS
+                                                                 : -ANGULO_CURVA_GRAUS;
+        Serial.printf("180° pela %s (esquerda %u mm, direita %u mm).\n",
+                      graus > 0 ? "esquerda" : "direita", distancias.esquerda,
+                      distancias.direita);
+        segunda_metade_180 = graus;
+        preparar_curva(graus);
     }
 }
 
