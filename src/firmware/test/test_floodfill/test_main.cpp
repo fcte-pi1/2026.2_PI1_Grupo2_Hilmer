@@ -153,6 +153,17 @@ void test_explorando_chega_ao_objetivo_no_12x4() {
     TEST_ASSERT_NOT_EQUAL(-1, explorar(real, 200));
 }
 
+// A coluna x = 3 é um beco: sobe de (3,0) até (3,2), sem saída para o objetivo (3,3)
+// nem para a coluna ao lado. O caminho pela borda leste parece o mais curto, então o
+// robô entra no beco e precisa voltar e subir pela coluna x = 2.
+void test_explorando_volta_de_um_beco_sem_saida() {
+    Labirinto real(4, 4);
+    real.colocarParede(3, 2, NORTE);
+    real.colocarParede(3, 1, OESTE);
+    real.colocarParede(3, 2, OESTE);
+    TEST_ASSERT_NOT_EQUAL(-1, explorar(real, 200));
+}
+
 void test_explorando_sem_paredes_internas_anda_o_minimo() {
     Labirinto real(12, 4);
     TEST_ASSERT_EQUAL(14, explorar(real, 200));
@@ -171,6 +182,7 @@ int main() {
     RUN_TEST(test_explorando_chega_ao_objetivo_no_4x4);
     RUN_TEST(test_explorando_chega_ao_objetivo_no_8x4);
     RUN_TEST(test_explorando_chega_ao_objetivo_no_12x4);
+    RUN_TEST(test_explorando_volta_de_um_beco_sem_saida);
     RUN_TEST(test_explorando_sem_paredes_internas_anda_o_minimo);
     return UNITY_END();
 }
