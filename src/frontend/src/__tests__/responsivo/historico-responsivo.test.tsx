@@ -52,6 +52,7 @@ const recordes: RecordeLabirinto[] = [
 ];
 
 const COLUNAS = [
+  '',
   'Corrida',
   'Data',
   'Labirinto',

@@ -71,7 +71,7 @@ export function ehDimensaoLabirinto(
 
 async function buscarApi<T>(caminho: string): Promise<T> {
   if (!API_URL) throw new Error('API_URL não está definida');
-  const res = await fetch(`${API_URL}${caminho}`, { cache: 'no-store' });
+  const res = await fetch(`${API_URL}${caminho}`);
   if (!res.ok) throw new Error(`GET ${caminho} falhou (HTTP ${res.status})`);
   return res.json();
 }
