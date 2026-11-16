@@ -10,6 +10,7 @@ describe('RunsController', () => {
     findBestRuns: jest.Mock;
     findById: jest.Mock;
     findSamplesByRunId: jest.Mock;
+    deleteRuns: jest.Mock;
   };
 
   const mockRun = {
@@ -30,6 +31,7 @@ describe('RunsController', () => {
       ]),
       findById: jest.fn().mockResolvedValue(mockRun),
       findSamplesByRunId: jest.fn().mockResolvedValue([]),
+      deleteRuns: jest.fn().mockResolvedValue({ deletedCount: 2 }),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -50,6 +52,12 @@ describe('RunsController', () => {
     const result = await controller.findBestRuns();
     expect(result).toHaveLength(1);
     expect(service.findBestRuns).toHaveBeenCalled();
+  });
+
+  it('deve excluir múltiplas corridas pelos IDs informados', async () => {
+    const result = await controller.deleteRuns({ ids: ['run-1', 'run-2'] });
+    expect(result).toEqual({ deletedCount: 2 });
+    expect(service.deleteRuns).toHaveBeenCalledWith(['run-1', 'run-2']);
   });
 
   it('deve retornar detalhes de uma corrida por ID', async () => {
