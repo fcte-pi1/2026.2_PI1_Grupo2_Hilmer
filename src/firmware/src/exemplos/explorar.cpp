@@ -30,6 +30,9 @@
 #include "encoders/encoders.h"
 #include "motores/motores.h"
 #include "navegacao/bateria.h"
+#include "navegacao/centralizacao.h"
+#include "navegacao/contagem_celulas.h"
+#include "navegacao/equilibrio_rodas.h"
 #include "navegacao/floodfill.h"
 #include "navegacao/labirinto.h"
 #include "navegacao/pid.h"
@@ -39,6 +42,14 @@
 
 constexpr uint32_t I2C_FREQUENCIA_HZ = 400000;
 constexpr uint32_t PERIODO_MS = 10;
+
+// Cada VL53L0X mede a cada ~20 ms. Sem medida nova por mais que isso, o sensor caiu
+// (I2C, fio ou alimentação). Sem esse teste, um sensor que não iniciou fica em 65535,
+// que o robô lê como "sem parede": foi assim que uma corrida andou cega pelo mapa todo.
+constexpr uint32_t IDADE_MAXIMA_DISTANCIA_MS = 200;
+// A inicialização dos VL53L0X às vezes falha num boot e funciona no seguinte (o da
+// direita não tem XSHUT e pode ficar num estado ruim). Tenta algumas vezes.
+constexpr int TENTATIVAS_INICIAR_DISTANCIA = 3;
 
 // Tamanho do labirinto, visto do start: ALTURA é o número de células para a frente
 // do robô e LARGURA para o lado em que o labirinto continua. Por enquanto a ALTURA
@@ -59,8 +70,9 @@ constexpr uint16_t TOLERANCIA_ALINHAMENTO_MM = 6;
 constexpr float GANHO_ALINHAMENTO = 0.01f;  // velocidade por mm de erro
 // Abaixo disso o N20 para no meio do ajuste; acima, passa do ponto (o sensor mede a
 // cada ~20 ms).
-constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.30f;
-constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.38f;
+// Subiu de 0,30/0,38: nas corridas a roda parava no ajuste e a ponte H ficava apitando.
+constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.33f;
+constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.40f;
 // Parado, o N20 não sai do lugar com a velocidade do ajuste: no começo ele recebe
 // VELOCIDADE_ARRANQUE por um instante, mais curto que o da reta para não passar do ponto.
 constexpr uint32_t TEMPO_IMPULSO_ALINHAMENTO_MS = 60;
@@ -75,9 +87,6 @@ constexpr float TAMANHO_CELULA_MM = 180.0f;
 // A calibração só usa a parede da frente até essa distância: mais longe, o VL53L0X
 // erra mais e a medida piora em vez de melhorar.
 constexpr uint16_t ALCANCE_CALIBRACAO_MM = 500;
-// Para contar quantas células o robô andou basta errar menos de meia célula (90 mm),
-// então a parede da frente vale até mais longe.
-constexpr uint16_t ALCANCE_CONTAGEM_MM = 1000;
 // Uma medida que dá mais de 10% longe do valor inicial é descartada (roda escorregou,
 // leitura ruim): o valor calibrado nunca sai dessa faixa. 10% são 18 mm por célula;
 // com 25%, leituras ruins dos sensores levavam o robô a parar entre células.
@@ -88,16 +97,43 @@ constexpr int32_t COMPENSACAO_FREIO_MAXIMA = 400;
 // Valores calibrados no exemplo_parede_curva.
 constexpr uint16_t LIMIAR_FRENTE_MM = 75;
 constexpr uint16_t LIMIAR_LATERAL_MM = 100;
-constexpr uint16_t DISTANCIA_CENTRO_MM = 50;
-constexpr float GANHO_CENTRO = 0.3f;            // graus por mm
+// Leitura de cada sensor lateral com o robô no centro do corredor (27,7 mm entre cada
+// lateral e a parede, medido com régua; média de 3 x 50 leituras, sensor da esquerda já
+// trocado). Os dois leem diferente (posição no chassi e offset de cada VL53L0X). Com um
+// valor só para os dois lados (50 mm), o robô ficava fora do centro: ~10 mm para a
+// direita com parede dos dois lados e ~24 mm com parede só à esquerda (simulado).
+// A ±10 mm do centro a esquerda acompanha o movimento; a direita, perto da parede,
+// responde só ~metade (41,5 mm em vez de ~36), então a correção desse lado é mais fraca.
+constexpr float CENTRO_ESQUERDA_MM = 22.0f;
+constexpr float CENTRO_DIREITA_MM = 46.0f;
+// Simulado no corredor (com ruído de até 4 mm): 0,3 a 0,8 ficam estáveis; 0,5 corrige
+// mais rápido que 0,3 e deixa margem para atrasos que a simulação não pega.
+constexpr float GANHO_CENTRO = 0.5f;            // graus por mm
 constexpr float INCLINACAO_CENTRO_MAX = 10.0f;  // graus
 constexpr float FILTRO_CENTRO = 0.2f;
-constexpr float VELOCIDADE_RETA = 0.30f;
-constexpr float VELOCIDADE_CURVA_MAX = 0.32f;
-constexpr float VELOCIDADE_CURVA_MIN = 0.24f;
+// Subiram de 0,30 / 0,32 / 0,24: no fim da curva e às vezes na reta o N20 não vencia o
+// atrito (roda parada, ponte H apitando no PWM de 1 kHz).
+constexpr float VELOCIDADE_RETA = 0.34f;
+constexpr float VELOCIDADE_CURVA_MAX = 0.36f;
+constexpr float VELOCIDADE_CURVA_MIN = 0.28f;
 constexpr float COMPENSACAO_CURVA_GRAUS = 13.0f;
 constexpr float COMPENSACAO_MAXIMA_GRAUS = 45.0f;
-constexpr float ANGULO_CURVA_GRAUS = 85.0f;
+// Ângulo pedido ao giroscópio em cada curva de 90°, um por lado: os dois sentidos podem
+// sair diferentes, e numa escada de curvas (esquerda, esquerda, direita...) os erros se
+// somam. Medir com o exemplo_calibrar_giro e copiar o valor de cada lado aqui.
+constexpr float ANGULO_CURVA_ESQUERDA_GRAUS = 85.0f;
+constexpr float ANGULO_CURVA_DIREITA_GRAUS = 85.0f;
+// Equilíbrio das rodas na curva: o motor esquerdo gira 6% a 8% mais rápido que o direito
+// com o mesmo duty, e o centro de giro escorrega (~3 mm por curva; simulado: com ganho
+// 0,01 por contagem, ~0,2 mm). Se um encoder parar de contar, o equilíbrio desliga.
+constexpr float GANHO_EQUILIBRIO = 0.01f;     // fração da velocidade por contagem de diferença
+constexpr float EQUILIBRIO_MAXIMO = 0.2f;
+// Curva travada (ponta na parede): dá uma ré curta e tenta de novo, até esse tanto de vezes.
+// Depois disso para com erro: seguir com a curva incompleta desalinha o mapa.
+constexpr int TENTATIVAS_CURVA = 2;
+constexpr int32_t RECUO_CONTAGENS = 200;      // ~25 mm
+constexpr float VELOCIDADE_RECUO = 0.30f;
+constexpr uint32_t TEMPO_MAX_RECUO_MS = 800;
 constexpr uint32_t TEMPO_PARADO_MS = 500;
 constexpr float QUEDA_L298N_V = 2.0f;
 constexpr float VELOCIDADE_ARRANQUE = 0.60f;
@@ -124,7 +160,7 @@ static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
                                          Pinos::MOTOR_DIR_IN2, false};
 static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, true};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
 static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
 // Correção do rumo na reta: 0,02 de diferença de velocidade por grau de desvio.
@@ -141,6 +177,8 @@ enum Estado {
     PARADO_CELULA,    // parado no centro de uma célula: lê paredes e decide
     PARADO_ALINHADO,  // parado depois do alinhamento: faz a curva pendente
     PARADO_CURVA,     // parado depois de uma curva: anda a célula (ou a 2ª metade do 180°)
+    RECUANDO,         // a curva travou: ré curta antes de tentar de novo
+    PARADO_RECUO,     // parado depois da ré: retoma a curva
     CHEGOU,
     ERRO,
 };
@@ -161,7 +199,7 @@ static float angulo = 0.0f;
 static float erro_zero_giro = 0.0f;  // graus/s, medido nas paradas e descontado do giro
 static float soma_zero = 0.0f;
 static int amostras_zero = 0;
-// Rumo que o robô deve ter: múltiplos de ANGULO_CURVA_GRAUS a partir do start.
+// Rumo que o robô deve ter: soma dos ângulos das curvas a partir do start.
 static float rumo = 0.0f;
 static float inclinacao_filtrada = 0.0f;
 // Compensação das curvas por sentido. Índice 0 = esquerda, 1 = direita.
@@ -182,6 +220,9 @@ static float curva_pendente = 0.0f;
 static float segunda_metade_180 = 0.0f;
 
 static uint32_t inicio_curva = 0;
+static int tentativas_curva = 0;
+static bool equilibrio_desligado = false;
+static uint32_t inicio_recuo = 0;
 static uint32_t inicio_alinhamento = 0;
 static uint32_t inicio_parado = 0;
 static uint32_t inicio_movimento = 0;
@@ -227,12 +268,16 @@ enum CodigoRegistro : uint8_t {
     FIM_BOTAO,
     FIM_BATERIA,
     CURVA_TRAVOU,
+    FIM_CURVA_TRAVOU,
+    FIM_SENSOR,
+    SENSOR_RECUPERADO,
 };
 static const char *NOMES_CODIGO[] = {
     "segue", "vira à direita", "volta (180)", "vira à esquerda",
     "FIM: objetivo atingido", "FIM: sem caminho até o objetivo",
     "FIM: posição fora do mapa", "FIM: células demais", "FIM: parado pelo botão",
-    "FIM: bateria baixa", "curva travou",
+    "FIM: bateria baixa", "curva travou", "FIM: curva travou de novo",
+    "FIM: sensor de distância sem medida", "sensor sem medida: reiniciado, continua",
 };
 
 struct __attribute__((packed)) RegistroCelula {
@@ -264,15 +309,28 @@ static void registrar(uint8_t codigo, uint8_t paredes) {
     memoria.putBytes("log", registros, total_registros * sizeof(RegistroCelula));
 }
 
-static void imprimir_registro() {
+// Ao largar, a corrida que estava no registro vai para "anterior", se ela chegou a
+// andar (mais de um registro). Assim apertar BOOT de novo depois de uma corrida, ou uma
+// largada que para na hora, não apaga o registro da corrida que interessa.
+static void guardar_corrida_anterior() {
     size_t tamanho = memoria.getBytesLength("log");
+    if (tamanho <= sizeof(RegistroCelula) || tamanho > sizeof(registros)) {
+        return;
+    }
+    RegistroCelula lidos[MAX_REGISTROS];
+    memoria.getBytes("log", lidos, tamanho);
+    memoria.putBytes("anterior", lidos, tamanho);
+}
+
+static void imprimir_registro(const char *chave = "log", const char *titulo = "Última corrida") {
+    size_t tamanho = memoria.getBytesLength(chave);
     int n = tamanho / sizeof(RegistroCelula);
     if (n > MAX_REGISTROS) {
         n = MAX_REGISTROS;
     }
     RegistroCelula lidos[MAX_REGISTROS];
-    memoria.getBytes("log", lidos, n * sizeof(RegistroCelula));
-    Serial.printf("\n===== Última corrida: %d registros =====\n", n);
+    memoria.getBytes(chave, lidos, n * sizeof(RegistroCelula));
+    Serial.printf("\n===== %s: %d registros =====\n", titulo, n);
     Serial.println("  t(s)  célula  virado   paredes F D E   frente  direita esquerda  ação");
     for (int i = 0; i < n; i++) {
         const RegistroCelula &r = lidos[i];
@@ -280,7 +338,7 @@ static void imprimir_registro() {
                       r.t_ds / 10.0f, r.x, r.y, NOMES_DIRECAO[r.direcao & 3],
                       (r.paredes & 1) ? 'X' : '.', (r.paredes & 2) ? 'X' : '.',
                       (r.paredes & 4) ? 'X' : '.', r.frente_mm, r.direita_mm, r.esquerda_mm,
-                      r.codigo <= CURVA_TRAVOU ? NOMES_CODIGO[r.codigo] : "?");
+                      r.codigo <= SENSOR_RECUPERADO ? NOMES_CODIGO[r.codigo] : "?");
     }
 }
 
@@ -306,7 +364,7 @@ static void comandar(float esquerdo, float direito) {
 // Parado no chão, com os motores desligados ou freados há pelo menos TEMPO_ASSENTAR_MS.
 static bool parado_assentado() {
     bool parado = estado == AGUARDANDO || estado == PARADO_CELULA ||
-                  estado == PARADO_CURVA || estado == PARADO_ALINHADO;
+                  estado == PARADO_CURVA || estado == PARADO_ALINHADO || estado == PARADO_RECUO;
     return parado && (estado == AGUARDANDO || millis() - inicio_parado >= TEMPO_ASSENTAR_MS);
 }
 
@@ -381,6 +439,8 @@ static void imprimir_mapa() {
 }
 
 // Retorna true uma vez a cada aperto do botão BOOT ou "s" no monitor serial.
+static void imprimir_falhas(uint8_t falhas);
+
 static bool comando_start() {
     static bool botao_anterior = false;
     static uint32_t ultimo_aperto = 0;
@@ -398,12 +458,24 @@ static bool comando_start() {
             apertou = true;
         } else if (comando == 'r') {
             imprimir_registro();
+        } else if (comando == 'p') {
+            imprimir_registro("anterior", "Corrida anterior");
         } else if (comando == 'c') {
             // Volta a calibração da célula para o valor medido no exemplo_celula.
             contagens_por_celula = CONTAGENS_POR_CELULA;
             memoria.remove("celula");
             Serial.printf("Calibração zerada: %ld contagens por célula.\n",
                           (long)contagens_por_celula);
+        } else if (comando == 'd') {
+            // Estado dos sensores de distância, sem ligar os motores.
+            uint8_t falhas = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
+            Serial.printf("[%lu s] frente %u, esquerda %u, direita %u mm. ", millis() / 1000,
+                          distancias.frente, distancias.esquerda, distancias.direita);
+            if (falhas == 0) {
+                Serial.println("Os três medindo.");
+            } else {
+                imprimir_falhas(falhas);
+            }
         } else if (comando == 'm') {
             floodfill.calcular();
             imprimir_mapa();
@@ -415,17 +487,10 @@ static bool comando_start() {
 // Inclinação do rumo, em graus, para levar o robô ao centro do corredor pelas paredes
 // laterais. Positivo: perto demais da parede da direita, então inclina para a esquerda.
 static float inclinacao_centro() {
-    bool parede_esquerda = !lado_livre(distancias.esquerda);
-    bool parede_direita = !lado_livre(distancias.direita);
-    float erro_mm = 0.0f;
-    if (parede_esquerda && parede_direita) {
-        erro_mm = (float)distancias.esquerda - (float)distancias.direita;
-    } else if (parede_esquerda) {
-        erro_mm = (float)distancias.esquerda - DISTANCIA_CENTRO_MM;
-    } else if (parede_direita) {
-        erro_mm = DISTANCIA_CENTRO_MM - (float)distancias.direita;
-    }
-    return constrain(GANHO_CENTRO * erro_mm, -INCLINACAO_CENTRO_MAX, INCLINACAO_CENTRO_MAX);
+    static const CalibracaoCentro CENTRO = {CENTRO_ESQUERDA_MM, CENTRO_DIREITA_MM,
+                                            LIMIAR_LATERAL_MM, GANHO_CENTRO,
+                                            INCLINACAO_CENTRO_MAX};
+    return centralizacao_inclinacao(distancias.esquerda, distancias.direita, CENTRO);
 }
 
 // ---------------------------------------------------------------------------
@@ -501,11 +566,38 @@ static void calibrar_celula() {
 }
 
 // graus > 0 vira para a esquerda.
-static void comecar_curva(float graus) {
-    rumo += graus;
+static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo);
+
+// Começa (ou retoma, depois de uma ré) a curva até o rumo atual.
+static void retomar_curva() {
+    encoders_zerar();  // o equilíbrio compara as rodas desde o começo da curva
     inicio_curva = millis();
     inicio_movimento = millis();
     estado = VIRANDO;
+}
+
+static void comecar_curva(float graus) {
+    rumo += graus;
+    tentativas_curva = 0;
+    retomar_curva();
+}
+
+// Correção do equilíbrio das rodas na curva. Com um encoder parado e o outro contando
+// (fio solto), o equilíbrio jogaria toda a velocidade numa roda só: aí ele desliga.
+static float correcao_equilibrio() {
+    int32_t esquerda = encoders_contagem_esquerda();
+    int32_t direita = encoders_contagem_direita();
+    int32_t me = abs(esquerda), md = abs(direita);
+    int32_t maior = max(me, md), menor = min(me, md);
+    if (!equilibrio_desligado && maior >= 100 && menor * 10 < maior) {
+        equilibrio_desligado = true;
+        Serial.printf("Equilíbrio das rodas desligado: encoder parado (esquerda %ld, direita %ld).\n",
+                      (long)esquerda, (long)direita);
+    }
+    if (equilibrio_desligado) {
+        return 0.0f;
+    }
+    return equilibrio_rodas(esquerda, direita, GANHO_EQUILIBRIO, EQUILIBRIO_MAXIMO);
 }
 
 static void virar() {
@@ -520,20 +612,44 @@ static void virar() {
         return;
     }
     if (millis() - inicio_curva > TEMPO_MAX_CURVA_MS) {
-        Serial.printf("Curva travou faltando %.1f graus.\n", falta);
+        Serial.printf("Curva travou faltando %.1f graus (tentativa %d).\n", falta,
+                      tentativas_curva + 1);
         registrar(CURVA_TRAVOU, 0);
-        // O rumo volta a ser o atual, para a reta seguinte não tentar terminar a curva.
-        rumo = angulo;
-        parar(PARADO_CURVA);
+        if (tentativas_curva >= TENTATIVAS_CURVA) {
+            // Seguir com a curva incompleta deixaria o robô virado para um lado e o mapa
+            // achando que é outro: melhor parar e mostrar o motivo.
+            encerrar(FIM_CURVA_TRAVOU, ERRO, "A curva travou de novo depois da ré. Teste encerrado.");
+            return;
+        }
+        // Ré curta para soltar a ponta da parede; o rumo alvo continua o mesmo.
+        tentativas_curva++;
+        motores_frear();
+        encoders_zerar();
+        inicio_recuo = millis();
+        inicio_movimento = millis();
+        estado = RECUANDO;
         return;
     }
     // Desacelera perto do fim para não passar do ângulo.
     float velocidade = constrain(fabsf(falta) * 0.01f, VELOCIDADE_CURVA_MIN, VELOCIDADE_CURVA_MAX);
+    // A roda atrasada recebe um pouco mais de velocidade (a adiantada não é freada).
+    float fe, fd;
+    equilibrio_fatores(correcao_equilibrio(), fe, fd);
     if (falta > 0) {
-        comandar(-velocidade, velocidade);  // gira para a esquerda
+        comandar(-velocidade * fe, velocidade * fd);  // gira para a esquerda
     } else {
-        comandar(velocidade, -velocidade);  // gira para a direita
+        comandar(velocidade * fe, -velocidade * fd);  // gira para a direita
     }
+}
+
+// Ré curta depois de uma curva travada.
+static void recuar() {
+    int32_t andou = max(abs(encoders_contagem_esquerda()), abs(encoders_contagem_direita()));
+    if (andou >= RECUO_CONTAGENS || millis() - inicio_recuo > TEMPO_MAX_RECUO_MS) {
+        parar(PARADO_RECUO);
+        return;
+    }
+    comandar(-VELOCIDADE_RECUO, -VELOCIDADE_RECUO);
 }
 
 // Com o robô parado depois de uma curva: quanto ele girou depois do freio é a
@@ -586,11 +702,91 @@ static void preparar_curva(float graus) {
 
 // Fim da corrida: para os motores, registra o motivo e mostra o mapa. O estado final
 // define o LED: CHEGOU pisca devagar, ERRO pisca rápido.
+// Sensores sem medida, para o registro do FIM_SENSOR (bits do driver de distância).
+static uint8_t falhas_distancia = 0;
+
+// Converte as falhas do driver para as colunas "F D E" do registro.
+static uint8_t falhas_para_colunas(uint8_t falhas) {
+    return ((falhas & DISTANCIA_FALHA_FRENTE) ? 1 : 0) |
+           ((falhas & DISTANCIA_FALHA_DIREITA) ? 2 : 0) |
+           ((falhas & DISTANCIA_FALHA_ESQUERDA) ? 4 : 0);
+}
+
+static void imprimir_falhas(uint8_t falhas) {
+    Serial.printf("Sensores sem medida:%s%s%s\n",
+                  (falhas & DISTANCIA_FALHA_FRENTE) ? " frente" : "",
+                  (falhas & DISTANCIA_FALHA_ESQUERDA) ? " esquerda" : "",
+                  (falhas & DISTANCIA_FALHA_DIREITA) ? " direita" : "");
+}
+
+// Inicia os sensores de distância e espera a primeira medida de cada um. "completo":
+// inicia os três do zero (boot); senão, tenta de novo só os que estão sem medida, sem
+// mexer nos que funcionam. Retorna as falhas que sobraram (0 = os três medindo).
+static uint8_t esperar_medidas() {
+    uint32_t inicio = millis();
+    uint8_t falhas;
+    do {
+        distancia_ler(distancias);
+        delay(5);
+        falhas = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
+    } while (falhas != 0 && millis() - inicio < 2 * IDADE_MAXIMA_DISTANCIA_MS);
+    return falhas;
+}
+
+static uint8_t iniciar_distancia(bool completo) {
+    if (completo) {
+        distancia_iniciar(Wire, PINOS_DISTANCIA);
+    }
+    uint8_t falhas = esperar_medidas();
+    for (int tentativa = 0; falhas != 0 && tentativa < TENTATIVAS_INICIAR_DISTANCIA; tentativa++) {
+        imprimir_falhas(falhas);
+        Serial.println("Tentando de novo só esses.");
+        distancia_reiniciar(Wire, PINOS_DISTANCIA, falhas);
+        falhas = esperar_medidas();
+    }
+    if (falhas != 0) {
+        imprimir_falhas(falhas);
+    }
+    return falhas;
+}
+
+// Um sensor parou de medir no meio da corrida (nas corridas, o da esquerda, por
+// alguns instantes). Em vez de encerrar: freia, tenta iniciar de novo só esse sensor e,
+// se ele voltar, segue do mesmo estado. Os prazos (curva, ré, alinhamento, parado)
+// andam junto com a pausa, e o motor volta com o impulso de arranque.
+static bool recuperar_sensores() {
+    motores_frear();
+    uint32_t inicio_pausa = millis();
+    uint8_t falhas_antes = falhas_distancia;
+    imprimir_falhas(falhas_distancia);
+    Serial.println("Freou para iniciar de novo esse sensor.");
+    // Enquanto o robô termina de parar, o giroscópio continua integrando; senão o giro
+    // desse instante (no meio de uma curva) ficaria fora do ângulo.
+    while (millis() - inicio_pausa < TEMPO_ASSENTAR_MS) {
+        atualizar_angulo();
+        delay(PERIODO_MS);
+    }
+    falhas_distancia = iniciar_distancia(false);
+    if (falhas_distancia != 0) {
+        return false;
+    }
+    uint32_t pausa = millis() - inicio_pausa;
+    inicio_curva += pausa;
+    inicio_recuo += pausa;
+    inicio_alinhamento += pausa;
+    inicio_parado += pausa;
+    inicio_movimento = millis();
+    registrar(SENSOR_RECUPERADO, falhas_para_colunas(falhas_antes));
+    Serial.printf("Sensor de volta em %lu ms. Continua.\n", (unsigned long)pausa);
+    return true;
+}
+
 static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo) {
     motores_frear();
     motores_habilitar(false);
     estado = final;
-    registrar(codigo, 0);
+    // No FIM_SENSOR, as colunas de parede marcam com X os sensores que falharam.
+    registrar(codigo, codigo == FIM_SENSOR ? falhas_para_colunas(falhas_distancia) : 0);
     Serial.println(motivo);
     Serial.printf("Correção do zero do giroscópio: %.3f graus/s\n", erro_zero_giro);
     floodfill.calcular();
@@ -598,10 +794,19 @@ static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo) {
 }
 
 // Marca no mapa as paredes da frente, da direita e da esquerda.
-static void ler_paredes(bool &frente, bool &direita, bool &esquerda) {
+// "so_frente": o robô parou fora do centro da célula (parede logo na frente). Dali os
+// sensores laterais enxergam as paredes da célula seguinte, e como o mapa só ganha
+// paredes, uma leitura errada fecharia a saída de vez (foi o que deu "sem caminho" em
+// (0,2)). Nesse caso só a frente é lida; as laterais ficam como foram lidas no centro.
+static void ler_paredes(bool &frente, bool &direita, bool &esquerda, bool so_frente) {
     frente = distancias.frente < LIMIAR_PAREDE_FRENTE_MM;
-    direita = !lado_livre(distancias.direita);
-    esquerda = !lado_livre(distancias.esquerda);
+    if (so_frente) {
+        direita = labirinto.temParede(pos_x, pos_y, lado_no_mapa(1));
+        esquerda = labirinto.temParede(pos_x, pos_y, lado_no_mapa(3));
+    } else {
+        direita = !lado_livre(distancias.direita);
+        esquerda = !lado_livre(distancias.esquerda);
+    }
     if (frente) {
         labirinto.colocarParede(pos_x, pos_y, lado_no_mapa(0));
     }
@@ -614,9 +819,9 @@ static void ler_paredes(bool &frente, bool &direita, bool &esquerda) {
 }
 
 // Robô parado no centro de (pos_x, pos_y): lê as paredes e decide a próxima célula.
-static void decidir() {
+static void decidir(bool so_frente = false) {
     bool frente, direita, esquerda;
-    ler_paredes(frente, direita, esquerda);
+    ler_paredes(frente, direita, esquerda, so_frente);
 
     if (floodfill.objetivo(pos_x, pos_y)) {
         encerrar(FIM_OBJETIVO, CHEGOU, "");
@@ -656,16 +861,16 @@ static void decidir() {
     if (passos == 0) {
         comecar_celula();
     } else if (passos == 1) {
-        preparar_curva(-ANGULO_CURVA_GRAUS);
+        preparar_curva(-ANGULO_CURVA_DIREITA_GRAUS);
     } else if (passos == 3) {
-        preparar_curva(ANGULO_CURVA_GRAUS);
+        preparar_curva(ANGULO_CURVA_ESQUERDA_GRAUS);
     } else {
         // 180°: duas curvas de 90° para o mesmo lado. Entre elas, a parede que estava do
         // lado fica na frente e o alinhamento centraliza o robô também nesse eixo.
         // O lado é o da parede mais longe: com o robô fora do centro, girar para o lado
         // mais perto faz a ponta raspar na parede. Sem leitura (65535) conta como longe.
-        float graus = distancias.esquerda >= distancias.direita ? ANGULO_CURVA_GRAUS
-                                                                 : -ANGULO_CURVA_GRAUS;
+        float graus = distancias.esquerda >= distancias.direita ? ANGULO_CURVA_ESQUERDA_GRAUS
+                                                                 : -ANGULO_CURVA_DIREITA_GRAUS;
         Serial.printf("180° pela %s (esquerda %u mm, direita %u mm).\n",
                       graus > 0 ? "esquerda" : "direita", distancias.esquerda,
                       distancias.direita);
@@ -674,16 +879,14 @@ static void decidir() {
     }
 }
 
-// Quantas células o robô andou no último trecho. Com parede na frente ao alcance no
-// começo e no fim, o sensor da frente responde melhor que os encoders (que escorregam
-// ou podem falhar); sem ela, vale o encoder.
+// Quantas células o robô andou no último trecho: pelos encoders, com a parede da frente
+// só conferindo (navegacao/contagem_celulas.*). De longe a frente erra: numa corrida ela
+// leu 383 mm no começo e 53 mm no fim de uma célula só, e o robô ficou uma célula
+// adiantado no mapa.
 static int celulas_no_trecho() {
-    uint16_t frente_fim = distancias.frente;
-    if (frente_inicio_celula <= ALCANCE_CONTAGEM_MM && frente_fim != DISTANCIA_INVALIDA) {
-        float andou_mm = (float)frente_inicio_celula - (float)frente_fim;
-        return max(0L, lroundf(andou_mm / TAMANHO_CELULA_MM));
-    }
-    return contagem_andada() >= contagens_por_celula / 2 ? 1 : 0;
+    LeituraTrecho trecho = {contagem_andada(), contagens_por_celula, frente_inicio_celula,
+                            distancias.frente};
+    return contagem_celulas(trecho, TAMANHO_CELULA_MM);
 }
 
 // Robô parado depois de andar uma célula: atualiza a posição e decide.
@@ -696,12 +899,12 @@ static void chegou_na_celula() {
         // do lugar e o mapa ficaria todo deslocado.
         Serial.printf("Parede logo na frente (%u mm): continua em (%d,%d).\n",
                       distancias.frente, pos_x, pos_y);
-        decidir();
+        decidir(true);
         return;
     }
     if (celulas > 1) {
-        // Passou de células sem parar (encoder com problema): a posição acompanha o que
-        // o sensor da frente mediu. As paredes laterais dessas células ficam sem marcar.
+        // Passou de células sem parar (os encoders contaram mais de 1,5 célula): a posição
+        // acompanha a contagem. As paredes laterais dessas células ficam sem marcar.
         Serial.printf("Andou %d células sem parar: confira os encoders.\n", celulas);
     } else {
         ajustar_freio();
@@ -732,6 +935,9 @@ void setup() {
     // O registro da última corrida aparece antes de tudo: assim ele é lido só com a
     // USB, mesmo que os sensores não respondam sem a bateria. "r" mostra de novo.
     memoria.begin("explorar", false);
+    if (memoria.getBytesLength("anterior") > 0) {
+        imprimir_registro("anterior", "Corrida anterior");
+    }
     if (memoria.getBytesLength("log") > 0) {
         imprimir_registro();
     }
@@ -747,8 +953,9 @@ void setup() {
         Serial.println("Erro: falha ao configurar o PCNT dos encoders");
     }
     Wire.begin(Pinos::I2C_SDA, Pinos::I2C_SCL, I2C_FREQUENCIA_HZ);
-    if (!distancia_iniciar(Wire, PINOS_DISTANCIA)) {
-        Serial.println("Aviso: algum sensor de distância não iniciou");
+    if (iniciar_distancia(true) != 0) {
+        // O start tenta iniciar de novo; se não der, recusa a corrida (LED piscando rápido).
+        Serial.println("Erro: algum sensor de distância não iniciou. O start tenta de novo.");
     }
     if (!energia_iniciar(Wire)) {
         Serial.println("Aviso: INA219 não respondeu. O duty máximo fica no padrão.");
@@ -794,6 +1001,7 @@ void loop() {
             direcao = NORTE;
             celulas_andadas = 0;
             total_registros = 0;
+            guardar_corrida_anterior();
             memoria.remove("log");
             inicio_corrida = millis();
             if (!bateria_ok()) {
@@ -801,9 +1009,22 @@ void loop() {
                 encerrar(FIM_BATERIA, ERRO, "Bateria abaixo de 6,6 V. Recarregue antes de usar.");
                 return;
             }
+            falhas_distancia = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
+            if (falhas_distancia != 0) {
+                // Robô parado: dá para tentar iniciar os sensores de novo.
+                imprimir_falhas(falhas_distancia);
+                Serial.println("Iniciando os sensores de distância de novo.");
+                falhas_distancia = iniciar_distancia(false);
+            }
+            if (falhas_distancia != 0) {
+                encerrar(FIM_SENSOR, ERRO,
+                         "Algum sensor de distância não está medindo. Confira o I2C e reinicie.");
+                return;
+            }
             rumo = angulo;
             medindo_curva = false;
             segunda_metade_180 = 0.0f;
+            equilibrio_desligado = false;
             motores_habilitar(true);
             digitalWrite(Pinos::LED_STATUS, HIGH);
             decidir();
@@ -812,6 +1033,14 @@ void loop() {
                      "Parado pelo botão. Aperte de novo para recomeçar do start.");
         }
         return;
+    }
+
+    if (estado != AGUARDANDO && estado != CHEGOU && estado != ERRO) {
+        falhas_distancia = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
+        if (falhas_distancia != 0 && !recuperar_sensores()) {
+            encerrar(FIM_SENSOR, ERRO, "Sensor de distância parou de medir. Teste encerrado.");
+            return;
+        }
     }
 
     switch (estado) {
@@ -830,6 +1059,14 @@ void loop() {
         break;
     case VIRANDO:
         virar();
+        break;
+    case RECUANDO:
+        recuar();
+        break;
+    case PARADO_RECUO:
+        if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
+            retomar_curva();
+        }
         break;
     case ALINHANDO:
         alinhar();

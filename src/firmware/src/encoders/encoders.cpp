@@ -8,10 +8,12 @@ constexpr int LIMITE_ALTO = 32767;
 constexpr int LIMITE_BAIXO = -32768;
 
 // Pulsos mais curtos que isso são descartados. Os pulsos espúrios do rádio em
-// IO36/IO39 duram poucos microssegundos, e o intervalo entre bordas do encoder
-// na rotação máxima do motor fica na casa de dezenas de microssegundos.
-// No ESP32 o máximo é 1023 ciclos do APB (cerca de 12,7 us).
-constexpr uint32_t FILTRO_GLITCH_NS = 1000;
+// IO36/IO39 duram poucos microssegundos. Os canais da esquerda (IO34/IO35, sem pull-up
+// interno) tremem na troca de nível com a roda devagar: girando à mão, uma volta deu
+// milhares de bordas em vez de ~288. Na rotação máxima medida (~6400 contagens/s) as
+// bordas reais de cada canal ficam a ~300 us, então o filtro pode ficar no máximo do
+// ESP32: 1023 ciclos do APB (cerca de 12,7 us).
+constexpr uint32_t FILTRO_GLITCH_NS = 12700;
 
 struct Encoder {
     pcnt_unit_handle_t unidade = nullptr;
