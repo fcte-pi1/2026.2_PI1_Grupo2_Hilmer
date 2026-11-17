@@ -1,4 +1,15 @@
-import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Query,
+} from '@nestjs/common';
+import { DeleteRunsDto } from './dto/delete-runs.dto';
 import { RunsService } from './runs.service';
 
 @Controller('runs')
@@ -15,6 +26,12 @@ export class RunsController {
     return this.runsService.findBestRuns();
   }
 
+  @Delete()
+  @HttpCode(HttpStatus.OK)
+  async deleteRuns(@Body() dto: DeleteRunsDto) {
+    return this.runsService.deleteRuns(dto.ids);
+  }
+
   @Get(':id')
   async findById(@Param('id') id: string) {
     const run = await this.runsService.findById(id);
@@ -28,7 +45,9 @@ export class RunsController {
   async findSamples(@Param('id') id: string) {
     const samples = await this.runsService.findSamplesByRunId(id);
     if (!samples) {
-      throw new NotFoundException(`Amostras para a corrida ${id} não encontradas.`);
+      throw new NotFoundException(
+        `Amostras para a corrida ${id} não encontradas.`,
+      );
     }
     return samples;
   }

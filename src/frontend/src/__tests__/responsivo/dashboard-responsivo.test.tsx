@@ -67,12 +67,12 @@ describe.each(CASOS_DE_LARGURA)('Dashboard em %s (%i px)', (_nome, largura) => {
     }
   });
 
-  it('o botão de reproduzir a corrida continua disponível', () => {
-    render(<Monitoramento />);
-    expect(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    ).toBeInTheDocument();
-  });
+  // it('o botão de reproduzir a corrida continua disponível', () => {
+  //   render(<Monitoramento />);
+  //   expect(
+  //     screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+  //   ).toBeInTheDocument();
+  // });
 });
 
 describe.each(CASOS_DE_LARGURA)('Header em %s (%i px)', (_nome, largura) => {

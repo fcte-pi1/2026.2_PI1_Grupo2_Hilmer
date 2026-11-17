@@ -341,6 +341,67 @@ export class RunsService implements OnModuleInit {
   }
 
   /**
+   * Exclui várias corridas e suas telemetrias.
+   * A operação é atômica: se algum ID não existir, nenhuma corrida será excluída.
+   */
+  async deleteRuns(ids: string[]): Promise<{ deletedCount: number }> {
+    if (ids.length === 0) {
+      throw new Error('A lista de IDs não pode estar vazia.');
+    }
+
+    // Remove IDs repetidos sem alterar a lista original.
+    const uniqueIds = [...new Set(ids)];
+
+    try {
+      // Aguarda inicializações já iniciadas antes da exclusão.
+      const pendingStarts = [...this.startingRuns.values()];
+      await Promise.all(pendingStarts.map((promise) => promise.catch(() => null)));
+
+      const deletedCount = await this.prisma.$transaction(async (tx) => {
+        const existingRuns = await tx.corrida.findMany({
+          where: { id: { in: uniqueIds } },
+          select: { id: true },
+        });
+
+        if (existingRuns.length !== uniqueIds.length) {
+          throw new Error('Uma ou mais corridas não foram encontradas.');
+        }
+
+        const result = await tx.corrida.deleteMany({
+          where: { id: { in: uniqueIds } },
+        });
+
+        if (result.count !== uniqueIds.length) {
+          throw new Error('Não foi possível excluir todas as corridas.');
+        }
+
+        return result.count;
+      });
+
+      // Limpa referências em memória somente após a exclusão no banco.
+      for (const [robotId, corridaId] of this.activeRuns.entries()) {
+        if (uniqueIds.includes(corridaId)) {
+          this.activeRuns.delete(robotId);
+        }
+      }
+
+      for (const id of uniqueIds) {
+        this.finalizedRuns.delete(id);
+      }
+
+      this.logger.log(
+        `[RunsService] ${deletedCount} corrida(s) excluída(s).`,
+      );
+
+      return { deletedCount };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`[RunsService] Falha ao excluir corridas: ${msg}`);
+      throw err;
+    }
+  }
+
+  /**
    * Consulta corridas com suporte a paginação.
    */
   async listRuns(

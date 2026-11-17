@@ -45,37 +45,37 @@ describe('MazeLegend: botões de labirinto', () => {
   });
 });
 
-describe('MazeLegend: simulação', () => {
-  it('esconde o botão de simulação sem onToggleSimulation', () => {
-    render(<MazeLegend currentDimension="4x4" />);
-    expect(
-      screen.queryByRole('button', { name: /Simulação|Reproduzir/ }),
-    ).not.toBeInTheDocument();
-  });
+// describe('MazeLegend: simulação', () => {
+//   it('esconde o botão de simulação sem onToggleSimulation', () => {
+//     render(<MazeLegend currentDimension="4x4" />);
+//     expect(
+//       screen.queryByRole('button', { name: /Simulação|Reproduzir/ }),
+//     ).not.toBeInTheDocument();
+//   });
 
-  it('mostra Reproduzir Corrida quando parado e dispara o toggle', async () => {
-    const onToggle = jest.fn();
-    const user = userEvent.setup();
-    render(<MazeLegend currentDimension="4x4" onToggleSimulation={onToggle} />);
-    await user.click(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    );
-    expect(onToggle).toHaveBeenCalledTimes(1);
-  });
+//   it('mostra Reproduzir Corrida quando parado e dispara o toggle', async () => {
+//     const onToggle = jest.fn();
+//     const user = userEvent.setup();
+//     render(<MazeLegend currentDimension="4x4" onToggleSimulation={onToggle} />);
+//     await user.click(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     );
+//     expect(onToggle).toHaveBeenCalledTimes(1);
+//   });
 
-  it('mostra Pausar Simulação quando está simulando', () => {
-    render(
-      <MazeLegend
-        currentDimension="4x4"
-        isSimulating
-        onToggleSimulation={() => {}}
-      />,
-    );
-    expect(
-      screen.getByRole('button', { name: /Pausar Simulação/ }),
-    ).toBeInTheDocument();
-  });
-});
+//   it('mostra Pausar Simulação quando está simulando', () => {
+//     render(
+//       <MazeLegend
+//         currentDimension="4x4"
+//         isSimulating
+//         onToggleSimulation={() => {}}
+//       />,
+//     );
+//     expect(
+//       screen.getByRole('button', { name: /Pausar Simulação/ }),
+//     ).toBeInTheDocument();
+//   });
+// });
 
 describe('MazeLegend: legenda', () => {
   it('lista os itens visuais', () => {

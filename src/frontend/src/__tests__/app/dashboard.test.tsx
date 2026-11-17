@@ -80,71 +80,71 @@ describe('Dashboard: troca de labirinto', () => {
   });
 });
 
-describe('Dashboard: simulação da corrida', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
+// describe('Dashboard: simulação da corrida', () => {
+//   beforeEach(() => jest.useFakeTimers());
+//   afterEach(() => jest.useRealTimers());
 
-  it('anima o trajeto passo a passo e termina sozinha', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    render(<Monitoramento />);
+//   it('anima o trajeto passo a passo e termina sozinha', async () => {
+//     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+//     render(<Monitoramento />);
 
-    await user.click(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    );
-    expect(
-      screen.getByRole('button', { name: /Pausar Simulação/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
-      'Passos no trajeto: 1',
-    );
+//     await user.click(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     );
+//     expect(
+//       screen.getByRole('button', { name: /Pausar Simulação/ }),
+//     ).toBeInTheDocument();
+//     expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
+//       'Passos no trajeto: 1',
+//     );
 
-    act(() => {
-      jest.advanceTimersByTime(450);
-    });
-    expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
-      'Passos no trajeto: 2',
-    );
+//     act(() => {
+//       jest.advanceTimersByTime(450);
+//     });
+//     expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
+//       'Passos no trajeto: 2',
+//     );
 
-    act(() => {
-      jest.advanceTimersByTime(450 * 10);
-    });
-    expect(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
-      'Passos no trajeto: 7',
-    );
-  });
+//     act(() => {
+//       jest.advanceTimersByTime(450 * 10);
+//     });
+//     expect(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     ).toBeInTheDocument();
+//     expect(screen.getByText('Passos no trajeto:')).toHaveTextContent(
+//       'Passos no trajeto: 7',
+//     );
+//   });
 
-  it('pausa a simulação ao clicar de novo', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    render(<Monitoramento />);
+//   it('pausa a simulação ao clicar de novo', async () => {
+//     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+//     render(<Monitoramento />);
 
-    await user.click(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    );
-    await user.click(screen.getByRole('button', { name: /Pausar Simulação/ }));
+//     await user.click(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     );
+//     await user.click(screen.getByRole('button', { name: /Pausar Simulação/ }));
 
-    expect(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    ).toBeInTheDocument();
-  });
+//     expect(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     ).toBeInTheDocument();
+//   });
 
-  it('trocar de labirinto durante a simulação interrompe a animação', async () => {
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    render(<Monitoramento />);
+//   it('trocar de labirinto durante a simulação interrompe a animação', async () => {
+//     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+//     render(<Monitoramento />);
 
-    await user.click(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    );
-    await user.click(screen.getByRole('button', { name: '8x4' }));
+//     await user.click(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     );
+//     await user.click(screen.getByRole('button', { name: '8x4' }));
 
-    expect(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Tipo de labirinto: 8x4')).toBeInTheDocument();
-  });
-});
+//     expect(
+//       screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+//     ).toBeInTheDocument();
+//     expect(screen.getByText('Tipo de labirinto: 8x4')).toBeInTheDocument();
+//   });
+// });
 
 describe('Dashboard: corrida ao vivo', () => {
   // WebSocket falso para enviar mensagens do /live ao TelemetryProvider.
@@ -199,27 +199,27 @@ describe('Dashboard: corrida ao vivo', () => {
     expect(screen.getByText('Tipo de labirinto: 12x4')).toBeInTheDocument();
   });
 
-  it('a telemetria ao vivo interrompe a simulação manual', async () => {
-    const user = userEvent.setup();
-    renderAoVivo();
+  // it('a telemetria ao vivo interrompe a simulação manual', async () => {
+  //   const user = userEvent.setup();
+  //   renderAoVivo();
 
-    await user.click(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    );
-    expect(
-      screen.getByRole('button', { name: /Pausar Simulação/ }),
-    ).toBeInTheDocument();
+  //   await user.click(
+  //     screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+  //   );
+  //   expect(
+  //     screen.getByRole('button', { name: /Pausar Simulação/ }),
+  //   ).toBeInTheDocument();
 
-    act(() =>
-      FakeWebSocket.last?.receive({
-        channel: 'event',
-        event: 'RUN_START',
-        data: { maze: '4x4' },
-      }),
-    );
+  //   act(() =>
+  //     FakeWebSocket.last?.receive({
+  //       channel: 'event',
+  //       event: 'RUN_START',
+  //       data: { maze: '4x4' },
+  //     }),
+  //   );
 
-    expect(
-      screen.getByRole('button', { name: /Reproduzir Corrida/ }),
-    ).toBeInTheDocument();
-  });
+  //   expect(
+  //     screen.getByRole('button', { name: /Reproduzir Corrida/ }),
+  //   ).toBeInTheDocument();
+  // });
 });

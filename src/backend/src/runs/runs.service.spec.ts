@@ -7,6 +7,7 @@ describe('RunsService', () => {
   let service: RunsService;
   let prisma: {
     $queryRaw: jest.Mock;
+    $transaction: jest.Mock;
     labirinto: {
       upsert: jest.Mock;
       findFirst: jest.Mock;
@@ -16,6 +17,7 @@ describe('RunsService', () => {
       create: jest.Mock;
       update: jest.Mock;
       updateMany: jest.Mock;
+      deleteMany: jest.Mock;
       findFirst: jest.Mock;
       findMany: jest.Mock;
       findUnique: jest.Mock;
@@ -41,6 +43,9 @@ describe('RunsService', () => {
   beforeEach(async () => {
     prisma = {
       $queryRaw: jest.fn().mockResolvedValue([]),
+      $transaction: jest.fn((callback: (tx: typeof prisma) => Promise<unknown>) =>
+        callback(prisma),
+      ),
       labirinto: {
         upsert: jest.fn().mockResolvedValue(mockLabirinto),
         findFirst: jest.fn().mockResolvedValue({ id: mockLabirinto.id }),
@@ -55,6 +60,7 @@ describe('RunsService', () => {
           finalizadaEm: data.finalizadaEm,
         })),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         findFirst: jest.fn().mockResolvedValue(mockCorrida),
         findMany: jest.fn().mockResolvedValue([mockCorrida]),
         findUnique: jest.fn().mockResolvedValue(mockCorrida),
@@ -87,6 +93,8 @@ describe('RunsService', () => {
   });
 
   describe('onModuleInit', () => {
+    // onModuleInit não faz nada sem DATABASE_URL; o teste não pode depender do
+    // ambiente de quem roda a suíte.
     const originalDatabaseUrl = process.env.DATABASE_URL;
 
     beforeEach(() => {
@@ -99,17 +107,6 @@ describe('RunsService', () => {
       } else {
         process.env.DATABASE_URL = originalDatabaseUrl;
       }
-    });
-
-    // onModuleInit não faz nada sem DATABASE_URL; o teste não pode depender do
-    // ambiente de quem roda a suíte.
-    const databaseUrlOriginal = process.env.DATABASE_URL;
-    beforeEach(() => {
-      process.env.DATABASE_URL = 'postgresql://teste';
-    });
-    afterEach(() => {
-      if (databaseUrlOriginal === undefined) delete process.env.DATABASE_URL;
-      else process.env.DATABASE_URL = databaseUrlOriginal;
     });
 
     it('deve marcar corridas órfãs em EM_ANDAMENTO como ABORTADA', async () => {
@@ -271,6 +268,92 @@ describe('RunsService', () => {
         goalReached: true,
       });
       expect(result).toBeNull();
+    });
+  });
+
+  describe('deleteRuns', () => {
+    it('deve excluir múltiplas corridas de forma atômica, deduplicar IDs e limpar caches em memória', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+      expect(service.getActiveRunId('ROBOT_1')).toBe('run-1');
+
+      prisma.corrida.findMany.mockResolvedValueOnce([
+        { id: 'run-1' },
+        { id: 'run-2' },
+      ]);
+      prisma.corrida.deleteMany.mockResolvedValueOnce({ count: 2 });
+
+      const result = await service.deleteRuns(['run-1', 'run-2', 'run-1']);
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.corrida.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['run-1', 'run-2'] } },
+        select: { id: true },
+      });
+      expect(prisma.corrida.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['run-1', 'run-2'] } },
+      });
+      expect(result).toEqual({ deletedCount: 2 });
+      expect(service.getActiveRunId('ROBOT_1')).toBeUndefined();
+    });
+
+    it('deve lançar erro se a lista de IDs estiver vazia sem iniciar transação', async () => {
+      await expect(service.deleteRuns([])).rejects.toThrow(
+        'A lista de IDs não pode estar vazia.',
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('deve abortar atomicamente e preservar estado em memória se alguma corrida não existir', async () => {
+      await service.startRun({ robotId: 'ROBOT_1' });
+      prisma.corrida.findMany.mockResolvedValueOnce([{ id: 'run-1' }]);
+
+      await expect(
+        service.deleteRuns(['run-1', 'run-inexistente']),
+      ).rejects.toThrow('Uma ou mais corridas não foram encontradas.');
+
+      expect(prisma.corrida.deleteMany).not.toHaveBeenCalled();
+      expect(service.getActiveRunId('ROBOT_1')).toBe('run-1');
+    });
+
+    it('deve lançar erro se a contagem excluída divergir dos IDs solicitados', async () => {
+      prisma.corrida.findMany.mockResolvedValueOnce([
+        { id: 'run-1' },
+        { id: 'run-2' },
+      ]);
+      prisma.corrida.deleteMany.mockResolvedValueOnce({ count: 1 });
+
+      await expect(service.deleteRuns(['run-1', 'run-2'])).rejects.toThrow(
+        'Não foi possível excluir todas as corridas.',
+      );
+    });
+
+    it('deve aguardar inicializações em andamento antes de executar a exclusão', async () => {
+      let resolveUpsert!: (val: { id: string; dimensao: string }) => void;
+      prisma.labirinto.upsert.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveUpsert = resolve;
+          }),
+      );
+      prisma.corrida.create.mockResolvedValueOnce({
+        ...mockCorrida,
+        id: 'run-pendente',
+      });
+      prisma.corrida.findMany.mockResolvedValueOnce([{ id: 'run-pendente' }]);
+      prisma.corrida.deleteMany.mockResolvedValueOnce({ count: 1 });
+
+      const startPromise = service.startRun({ robotId: 'ROBOT_SYNC' });
+      const deletePromise = service.deleteRuns(['run-pendente']);
+
+      // Enquanto o upsert não termina, deleteMany ainda não foi chamado
+      expect(prisma.corrida.deleteMany).not.toHaveBeenCalled();
+
+      resolveUpsert({ id: 'lab-1', dimensao: '4x4' });
+
+      const [, deleteResult] = await Promise.all([startPromise, deletePromise]);
+
+      expect(deleteResult).toEqual({ deletedCount: 1 });
+      expect(service.getActiveRunId('ROBOT_SYNC')).toBeUndefined();
     });
   });
 
