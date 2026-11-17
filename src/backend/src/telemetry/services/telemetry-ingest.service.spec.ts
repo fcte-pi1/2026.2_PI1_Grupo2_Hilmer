@@ -51,7 +51,32 @@ describe('TelemetryIngestService (/ingest)', () => {
     const ws = await connect();
     ws.send('{"v":1}');
     await waitFor(() => processRawMessage.mock.calls.length === 1);
-    expect(processRawMessage).toHaveBeenCalledWith('{"v":1}');
+    expect(processRawMessage).toHaveBeenCalledWith('{"v":1}', {
+      novaConexao: true,
+    });
+  });
+
+  it('marca como nova conexão só até a primeira mensagem válida de cada conexão', async () => {
+    processRawMessage.mockImplementation((raw: string) =>
+      Promise.resolve(raw === 'lixo' ? null : { robot_id: 'mm-01' }),
+    );
+
+    const ws1 = await connect();
+    ws1.send('lixo');
+    ws1.send('a');
+    ws1.send('b');
+    await waitFor(() => processRawMessage.mock.calls.length === 3);
+
+    const ws2 = await connect();
+    ws2.send('c');
+    await waitFor(() => processRawMessage.mock.calls.length === 4);
+
+    expect(processRawMessage.mock.calls).toEqual([
+      ['lixo', { novaConexao: true }],
+      ['a', { novaConexao: true }],
+      ['b', { novaConexao: false }],
+      ['c', { novaConexao: true }],
+    ]);
   });
 
   it('processa as mensagens em ordem, mesmo que a primeira demore mais que a segunda', async () => {

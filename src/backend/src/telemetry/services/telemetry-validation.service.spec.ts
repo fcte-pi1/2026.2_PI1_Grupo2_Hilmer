@@ -178,6 +178,43 @@ describe('TelemetryValidationService', () => {
     });
   });
 
+  describe('Reinício do robô (seq volta a zero ao reconectar)', () => {
+    const telemetria = (seq: number) =>
+      JSON.stringify({
+        v: 1,
+        type: 'telemetry',
+        robot_id: 'mm-01',
+        seq,
+        t_ms: seq * 100,
+        pos: { x: 0, y: 0 },
+        heading: 'N',
+        speed_mm_s: 200,
+        battery_pct: 90,
+        state: 'EXPLORING',
+      });
+
+    it('aceita seq baixo na primeira mensagem de uma nova conexão, sem evento', async () => {
+      await service.processRawMessage(telemetria(500));
+
+      const aposReinicio = await service.processRawMessage(telemetria(0), {
+        novaConexao: true,
+      });
+      const seguinte = await service.processRawMessage(telemetria(1));
+
+      expect(aposReinicio).not.toBeNull();
+      expect(seguinte).not.toBeNull();
+      expect(service.getStats().duplicateSeq).toBe(0);
+    });
+
+    it('na mesma conexão continua descartando seq menor que o último', async () => {
+      await service.processRawMessage(telemetria(500));
+      const res = await service.processRawMessage(telemetria(0));
+
+      expect(res).toBeNull();
+      expect(service.getStats().duplicateSeq).toBe(1);
+    });
+  });
+
   describe('Emissão de Eventos Internos no Barramento NestJS', () => {
     it('deve emitir telemetry.received com envelope de timestamp para pacote de telemetria', async () => {
       const msg = JSON.stringify({

@@ -22,6 +22,15 @@ export interface IngestedMessageEnvelope<T = BaseMessageDto> {
   recebido_em: Date;
 }
 
+export interface ProcessRawOptions {
+  /**
+   * true na primeira mensagem de uma conexão WebSocket. O robô zera o seq a cada
+   * reinício da placa e sempre abre uma conexão nova ao voltar, então a primeira
+   * mensagem da conexão recomeça o controle de sequência daquele robot_id.
+   */
+  novaConexao?: boolean;
+}
+
 export interface IngestStats {
   totalReceived: number;
   validProcessed: number;
@@ -53,6 +62,7 @@ export class TelemetryValidationService {
    */
   async processRawMessage(
     rawMessage: string | Buffer,
+    options: ProcessRawOptions = {},
   ): Promise<BaseMessageDto | null> {
     this.stats.totalReceived++;
     const recebidoEm = new Date();
@@ -107,8 +117,11 @@ export class TelemetryValidationService {
     }
 
     // 3. Controle de Sequência (seq)
-    // Se for o início de uma nova corrida ou calibração, reseta o rastreador de sequência do robô
-    if (dtoInstance.type === 'event') {
+    // Reseta o rastreador do robô no início de corrida, na calibração e na primeira
+    // mensagem de cada conexão (o robô zera o seq quando reinicia e reconecta).
+    if (options.novaConexao) {
+      this.sequenceTracker.reset(dtoInstance.robot_id);
+    } else if (dtoInstance.type === 'event') {
       const eventName = (dtoInstance as EventPayloadDto).event;
       if (eventName === 'RUN_START' || eventName === 'CALIBRATION_DONE') {
         this.sequenceTracker.reset(dtoInstance.robot_id);

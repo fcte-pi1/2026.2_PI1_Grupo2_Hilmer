@@ -821,4 +821,71 @@ describe('RunsService', () => {
       });
     });
   });
+  describe('volta à origem depois do GOAL_REACHED', () => {
+    const evento = (
+      event: 'GOAL_REACHED' | 'RUN_END' | 'CALIBRATION_DONE',
+    ) => ({
+      data: {
+        v: 1 as const,
+        type: 'event' as const,
+        robot_id: 'mm-01',
+        seq: 50,
+        t_ms: 5000,
+        event,
+      },
+      recebido_em: new Date(),
+    });
+    const telemetria = {
+      v: 1,
+      type: 'telemetry',
+      robot_id: 'mm-01',
+      seq: 51,
+      t_ms: 5100,
+      pos: { x: 2, y: 2 },
+      heading: 'S',
+      speed_mm_s: 250,
+      battery_pct: 85,
+      state: 'RETURNING',
+    } as TelemetryPayloadDto;
+
+    beforeEach(async () => {
+      await service.startRun({ robotId: 'mm-01' });
+      await service.handleGoalReached(evento('GOAL_REACHED'));
+      prisma.corrida.create.mockClear();
+      prisma.telemetria.create.mockClear();
+    });
+
+    it('não cria corrida automática nem grava a telemetria da volta', async () => {
+      const result = await service.recordTelemetry({
+        robotId: 'mm-01',
+        payload: telemetria,
+      });
+
+      expect(result).toBeNull();
+      expect(prisma.corrida.create).not.toHaveBeenCalled();
+      expect(prisma.telemetria.create).not.toHaveBeenCalled();
+    });
+
+    it('depois do RUN_END volta a abrir corrida automática para telemetria avulsa', async () => {
+      await service.handleRunFinished(evento('RUN_END'));
+      await service.recordTelemetry({ robotId: 'mm-01', payload: telemetria });
+
+      expect(prisma.corrida.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('depois do CALIBRATION_DONE (robô reiniciou) volta a abrir corrida automática', async () => {
+      service.handleCalibrated(evento('CALIBRATION_DONE'));
+      await service.recordTelemetry({ robotId: 'mm-01', payload: telemetria });
+
+      expect(prisma.corrida.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('um RUN_START novo grava a telemetria na corrida nova', async () => {
+      await service.startRun({ robotId: 'mm-01' });
+      await service.recordTelemetry({ robotId: 'mm-01', payload: telemetria });
+
+      expect(prisma.corrida.create).toHaveBeenCalledTimes(1);
+      expect(prisma.telemetria.create).toHaveBeenCalledTimes(1);
+    });
+  });
 });

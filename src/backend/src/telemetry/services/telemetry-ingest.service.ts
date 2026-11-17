@@ -76,11 +76,19 @@ export class TelemetryIngestService implements OnModuleInit, OnModuleDestroy {
     // ordem de chegada. Uma fila por conexão garante que cada mensagem só começa a ser
     // processada quando a anterior terminou.
     let queue: Promise<unknown> = Promise.resolve();
+    // Só a primeira mensagem válida da conexão recomeça o controle de seq do robô.
+    let aguardandoPrimeira = true;
 
     socket.on('message', (data: RawData) => {
       const raw = rawToString(data);
       queue = queue
-        .then(() => this.validation.processRawMessage(raw))
+        .then(async () => {
+          const result = await this.validation.processRawMessage(raw, {
+            novaConexao: aguardandoPrimeira,
+          });
+          if (result) aguardandoPrimeira = false;
+          return result;
+        })
         // Um bug nosso não pode derrubar o processo nem a conexão do robô.
         .catch((err: Error) =>
           this.logger.error(
