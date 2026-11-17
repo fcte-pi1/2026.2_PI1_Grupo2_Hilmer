@@ -5,15 +5,15 @@ import { MazeDimension } from '@/lib/mock-data';
 interface MazeLegendProps {
   currentDimension: MazeDimension;
   onSelectDimension?: (dim: MazeDimension) => void;
-  isSimulating?: boolean;
-  onToggleSimulation?: () => void;
+  // isSimulating?: boolean;
+  // onToggleSimulation?: () => void;
 }
 
 export function MazeLegend({
   currentDimension,
   onSelectDimension,
-  isSimulating = false,
-  onToggleSimulation,
+  // isSimulating = false,
+  // onToggleSimulation,
 }: MazeLegendProps) {
   const dimensions: MazeDimension[] = ['4x4', '8x4', '12x4'];
 
@@ -95,7 +95,7 @@ export function MazeLegend({
           </div>
 
           {/* Botão de Animação / Simulação da Corrida */}
-          {onToggleSimulation && (
+          {/* {onToggleSimulation && (
             <button
               type="button"
               onClick={onToggleSimulation}
@@ -115,7 +115,7 @@ export function MazeLegend({
                 </>
               )}
             </button>
-          )}
+          )} */}
         </div>
       </div>
     </aside>
