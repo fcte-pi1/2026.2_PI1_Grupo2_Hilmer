@@ -49,15 +49,19 @@ const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
 const USAR_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
 function getClientApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    // No GitHub Codespaces, converte ...-3000.app.github.dev para ...-3002.app.github.dev
+    // mesmo que NEXT_PUBLIC_API_URL tenha sido injetada como localhost no build do Docker
+    if (hostname.includes('.app.github.dev')) {
+      return `${protocol}//${hostname.replace('-3000.', '-3002.')}`;
+    }
+  }
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
-    // No GitHub Codespaces, converte ...-3000.app.github.dev para ...-3002.app.github.dev
-    if (hostname.includes('-3000.')) {
-      return `${protocol}//${hostname.replace('-3000.', '-3002.')}`;
-    }
     return `${protocol}//${hostname}:3002`;
   }
   return 'http://localhost:3002';
