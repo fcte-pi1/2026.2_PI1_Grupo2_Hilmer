@@ -82,6 +82,13 @@ export class RunsService implements OnModuleInit {
    */
   private readonly startingRuns = new Map<string, Promise<Corrida | null>>();
 
+  /**
+   * Robôs que chegaram ao objetivo (GOAL_REACHED) e estão voltando à origem.
+   * A telemetria da volta continua indo ao vivo para o front, mas não abre uma
+   * corrida automática nova. Sai daqui no RUN_END, no RUN_START ou no CALIBRATION_DONE.
+   */
+  private readonly returningRobots = new Set<string>();
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**
@@ -119,6 +126,7 @@ export class RunsService implements OnModuleInit {
   async startRun(options: StartRunOptions = {}): Promise<Corrida | null> {
     const robotKey = options.robotId ?? 'default';
     const dimensao = options.dimensaoLabirinto ?? '4x4';
+    this.returningRobots.delete(robotKey);
     const iniciadaEm = options.iniciadaEm ?? new Date();
 
     const previousStart = this.startingRuns.get(robotKey);
@@ -283,6 +291,11 @@ export class RunsService implements OnModuleInit {
       if (!corridaId && this.startingRuns.has(robotKey)) {
         const pendingRun = await this.startingRuns.get(robotKey);
         corridaId = pendingRun?.id ?? this.activeRuns.get(robotKey);
+      }
+
+      if (!corridaId && this.returningRobots.has(robotKey)) {
+        // Volta à origem depois do GOAL_REACHED: não pertence a nenhuma corrida.
+        return null;
       }
 
       if (!corridaId) {
@@ -587,6 +600,9 @@ export class RunsService implements OnModuleInit {
   async handleGoalReached(
     envelope: IngestedMessageEnvelope<EventPayloadDto>,
   ): Promise<void> {
+    // Marca antes do await para que a telemetria da volta, que pode chegar
+    // enquanto o banco responde, não abra uma corrida automática.
+    this.returningRobots.add(envelope.data.robot_id);
     await this.finishRun({
       robotId: envelope.data.robot_id,
       goalReached: true,
@@ -602,11 +618,18 @@ export class RunsService implements OnModuleInit {
     if (envelope.data.event === 'GOAL_REACHED') {
       return;
     }
+    this.returningRobots.delete(envelope.data.robot_id);
     await this.finishRun({
       robotId: envelope.data.robot_id,
       goalReached: false,
       finalizadaEm: envelope.recebido_em,
     });
+  }
+
+  @OnEvent(TELEMETRY_EVENTS.RUN_CALIBRATED)
+  handleCalibrated(envelope: IngestedMessageEnvelope<EventPayloadDto>): void {
+    // O robô reiniciou ou recalibrou: a volta à origem anterior acabou.
+    this.returningRobots.delete(envelope.data.robot_id);
   }
 
   @OnEvent(TELEMETRY_EVENTS.TELEMETRY_RECEIVED)
