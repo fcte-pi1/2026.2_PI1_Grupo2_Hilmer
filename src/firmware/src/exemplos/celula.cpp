@@ -60,19 +60,16 @@ constexpr uint32_t TEMPO_PARADO_MS = 500;
 constexpr float QUEDA_L298N_V = 2.0f;
 constexpr float VELOCIDADE_ARRANQUE = 0.60f;
 constexpr uint32_t TEMPO_ARRANQUE_MS = 150;
-// O MPU6050 está montado com o componente para baixo: o giro para a esquerda sai negativo.
-constexpr bool IMU_INVERTIDA = true;
-
 // Botão BOOT da própria placa (GPIO0, com pull-up na placa). Só influi no boot, então
 // depois da inicialização serve de botão de partida, no lugar do SW2 (GPIO15).
 constexpr uint8_t BOTAO_BOOT = 0;
 
 static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ_IN1,
-                                          Pinos::MOTOR_ESQ_IN2, true};
+                                          Pinos::MOTOR_ESQ_IN2, Pinos::MOTOR_ESQ_INVERTIDO};
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
-                                         Pinos::MOTOR_DIR_IN2, false};
-static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
+                                         Pinos::MOTOR_DIR_IN2, Pinos::MOTOR_DIR_INVERTIDO};
+static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, Pinos::ENC_ESQ_INVERTIDO};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, Pinos::ENC_DIR_INVERTIDO};
 static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
 // Correção do rumo na reta: 0,02 de diferença de velocidade por grau de desvio.
@@ -122,7 +119,7 @@ static void atualizar_angulo() {
 
     float giro_z;
     if (imu_ler_giro_z(giro_z)) {
-        angulo += (IMU_INVERTIDA ? -giro_z : giro_z) * dt;
+        angulo += (Pinos::IMU_INVERTIDA ? -giro_z : giro_z) * dt;
     }
 }
 

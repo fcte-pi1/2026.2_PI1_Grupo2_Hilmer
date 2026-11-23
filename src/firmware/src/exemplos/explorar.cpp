@@ -10,12 +10,16 @@
 //   4. vira para ela (0°, 90° ou 180°) e anda uma célula.
 //
 // Como colocar o robô: no canto de saída, centralizado na célula e virado para a
-// saída do beco. Antes de gravar, ajustar LARGURA, ALTURA e LABIRINTO_A_DIREITA.
+// saída do beco. Antes de gravar, ajustar LARGURA e ALTURA. O lado em que o labirinto
+// continua é descoberto sozinho (LADO_CONFIGURADO).
 // Funciona sem a USB: o LED acende quando o robô está pronto, e o botão BOOT da placa
 // (ou "s" pelo monitor serial) começa e para. Pelo monitor, "m" mostra o mapa e "c"
 // zera a calibração das contagens por célula.
 //
 // LED no fim: piscando devagar, chegou ao objetivo; piscando rápido, parou por erro.
+// Com o env exemplo_explorar_wifi, também manda a telemetria pelo Wi-Fi ao backend
+// (config/credenciais.h), numa tarefa no núcleo 0: o controle segue no núcleo 1 e não
+// espera pela rede.
 // Registro sem USB e sem cartão SD: cada célula fica gravada na flash da ESP, que não
 // se apaga ao desligar. Depois da corrida, desligar a bateria, soltar o fio do 5V,
 // ligar a USB, abrir o monitor e enviar "r".
@@ -25,6 +29,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <Wire.h>
+#include <esp_system.h>
 
 #include "config/pinos.h"
 #include "encoders/encoders.h"
@@ -32,13 +37,22 @@
 #include "navegacao/bateria.h"
 #include "navegacao/centralizacao.h"
 #include "navegacao/contagem_celulas.h"
+#include "navegacao/deteccao_lado.h"
 #include "navegacao/equilibrio_rodas.h"
+#include "navegacao/espelho.h"
 #include "navegacao/floodfill.h"
 #include "navegacao/labirinto.h"
+#include "navegacao/passagens.h"
+#include "navegacao/travamento.h"
 #include "navegacao/pid.h"
 #include "sensores/distancia.h"
 #include "sensores/energia.h"
 #include "sensores/imu.h"
+
+#ifdef EXPLORAR_WIFI
+#include "comunicacao/comunicacao.h"
+#include "navegacao/telemetria.h"
+#endif
 
 constexpr uint32_t I2C_FREQUENCIA_HZ = 400000;
 constexpr uint32_t PERIODO_MS = 10;
@@ -50,14 +64,30 @@ constexpr uint32_t IDADE_MAXIMA_DISTANCIA_MS = 200;
 // A inicialização dos VL53L0X às vezes falha num boot e funciona no seguinte (o da
 // direita não tem XSHUT e pode ficar num estado ruim). Tenta algumas vezes.
 constexpr int TENTATIVAS_INICIAR_DISTANCIA = 3;
+constexpr uint32_t TEMPO_TENTAR_IMU_MS = 500;
+constexpr uint32_t TEMPO_TENTAR_SENSOR_MS = 1000;  // sensor sem medida no meio da corrida
+constexpr uint32_t TEMPO_TESTE_GIRO_MS = 600;  // comando "g": giro curto no lugar
 
 // Tamanho do labirinto, visto do start: ALTURA é o número de células para a frente
 // do robô e LARGURA para o lado em que o labirinto continua. Por enquanto a ALTURA
 // vai até 4 (LABIRINTO_MAX_ALTURA): o robô sai virado para o lado curto.
 constexpr int LARGURA = 4;
 constexpr int ALTURA = 4;
-// true: o labirinto continua para a direita do robô no start; false: para a esquerda.
-constexpr bool LABIRINTO_A_DIREITA = false;
+// Lado em que o labirinto continua a partir do start. LADO_DESCONHECIDO: o robô descobre
+// sozinho (navegacao/deteccao_lado): a borda externa nunca tem abertura, então a primeira
+// abertura lateral da primeira coluna mostra o lado. Até lá ele só anda reto, que é o
+// único caminho dessa coluna. LADO_DIREITA ou LADO_ESQUERDA forçam o lado, sem detecção.
+// Simulado em test_simulacao_explorar: 4x4, 8x4 e 12x4, com start nos dois cantos.
+constexpr LadoLabirinto LADO_CONFIGURADO = LADO_DESCONHECIDO;
+// Usado só se nenhuma abertura for confirmada até a parede no fim da primeira coluna.
+constexpr LadoLabirinto LADO_PADRAO = LADO_ESQUERDA;
+// Amostras das laterais em cada célula da primeira coluna, espaçadas para o VL53L0X ter
+// medida nova (~20 ms cada). Tolera uma amostra errada de cada lado.
+constexpr int AMOSTRAS_LADO = 5;
+constexpr uint32_t INTERVALO_AMOSTRA_LADO_MS = 30;
+// Com parede na frente e o lado ainda desconhecido, a abertura tem de estar ali: relê
+// antes de escolher pelo padrão.
+constexpr int RELEITURAS_SEM_SAIDA = 3;
 
 // Parado no centro, a parede da frente mede ~49 mm e a da célula seguinte ~230 mm.
 constexpr uint16_t LIMIAR_PAREDE_FRENTE_MM = 120;
@@ -70,15 +100,19 @@ constexpr uint16_t TOLERANCIA_ALINHAMENTO_MM = 6;
 constexpr float GANHO_ALINHAMENTO = 0.01f;  // velocidade por mm de erro
 // Abaixo disso o N20 para no meio do ajuste; acima, passa do ponto (o sensor mede a
 // cada ~20 ms).
-// Subiu de 0,30/0,38: nas corridas a roda parava no ajuste e a ponte H ficava apitando.
-constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.33f;
-constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.40f;
+// Subiu de 0,30/0,38 e depois de 0,33/0,40: nas corridas a roda parava no ajuste e a
+// ponte H ficava apitando.
+constexpr float VELOCIDADE_ALINHAMENTO_MIN = 0.28f;
+constexpr float VELOCIDADE_ALINHAMENTO_MAX = 0.34f;
 // Parado, o N20 não sai do lugar com a velocidade do ajuste: no começo ele recebe
 // VELOCIDADE_ARRANQUE por um instante, mais curto que o da reta para não passar do ponto.
 constexpr uint32_t TEMPO_IMPULSO_ALINHAMENTO_MS = 60;
 constexpr uint32_t TEMPO_MAX_ALINHAMENTO_MS = 1500;
 // Trava de segurança: um labirinto 4x4 não precisa de tantas células.
-constexpr int MAX_CELULAS = 60;
+// No dia da apresentação ninguém pode mexer no robô durante a corrida: ele não desiste
+// sozinho (curva travada, mapa sem caminho, sensor sem medida) e só para no objetivo, pela
+// bateria baixa ou pelo BOOT. Este limite é só uma trava contra laço infinito.
+constexpr int MAX_CELULAS = 400;
 
 // Valor calibrado no exemplo_celula. É só o valor inicial: o robô se recalibra pela
 // parede da frente (ver calibrar_celula) e guarda o valor na flash entre corridas.
@@ -111,11 +145,19 @@ constexpr float CENTRO_DIREITA_MM = 46.0f;
 constexpr float GANHO_CENTRO = 0.5f;            // graus por mm
 constexpr float INCLINACAO_CENTRO_MAX = 10.0f;  // graus
 constexpr float FILTRO_CENTRO = 0.2f;
-// Subiram de 0,30 / 0,32 / 0,24: no fim da curva e às vezes na reta o N20 não vencia o
-// atrito (roda parada, ponte H apitando no PWM de 1 kHz).
-constexpr float VELOCIDADE_RETA = 0.34f;
-constexpr float VELOCIDADE_CURVA_MAX = 0.36f;
-constexpr float VELOCIDADE_CURVA_MIN = 0.28f;
+// Histórico: 0,30 / 0,32 / 0,24 -> 0,34 / 0,36 / 0,28 -> 0,40 / 0,45 / 0,34, quando as
+// curvas travavam (bateria a 7,2 V e o MPU6050 com contato ruim). Com a bateria cheia e o
+// MPU firme, 0,45 girava 190 graus em 0,6 s (comando "g"): rápido demais para parar no
+// ângulo.
+// 23/11, robô com a fiação refeita, bateria a 8,2 V e MPU firme: com 0,34 / 0,38 / 0,30
+// ainda rápido demais. A curva passava do ponto e o robô parava fora do centro, e os
+// sensores pegavam a quina das paredes (lado aberto lido como parede a 75 e 93 mm), o que
+// fechava o caminho no mapa. Mais devagar, a centralização e o rumo têm tempo de corrigir.
+// O impulso de arranque (VELOCIDADE_ARRANQUE) continua tirando a roda da inércia. Se a
+// curva voltar a dar "curva travou", subir VELOCIDADE_CURVA_MIN.
+constexpr float VELOCIDADE_RETA = 0.26f;
+constexpr float VELOCIDADE_CURVA_MAX = 0.30f;
+constexpr float VELOCIDADE_CURVA_MIN = 0.25f;
 constexpr float COMPENSACAO_CURVA_GRAUS = 13.0f;
 constexpr float COMPENSACAO_MAXIMA_GRAUS = 45.0f;
 // Ângulo pedido ao giroscópio em cada curva de 90°, um por lado: os dois sentidos podem
@@ -130,18 +172,26 @@ constexpr float GANHO_EQUILIBRIO = 0.01f;     // fração da velocidade por cont
 constexpr float EQUILIBRIO_MAXIMO = 0.2f;
 // Curva travada (ponta na parede): dá uma ré curta e tenta de novo, até esse tanto de vezes.
 // Depois disso para com erro: seguir com a curva incompleta desalinha o mapa.
-constexpr int TENTATIVAS_CURVA = 2;
 constexpr int32_t RECUO_CONTAGENS = 200;      // ~25 mm
 constexpr float VELOCIDADE_RECUO = 0.30f;
 constexpr uint32_t TEMPO_MAX_RECUO_MS = 800;
+// Travamento na reta (encostado numa parede ou preso numa quina): sem andar
+// PROGRESSO_MINIMO_RETA contagens em JANELA_TRAVAMENTO_MS, dá ré curta e retoma a célula.
+// Andando normal são ~400 a 500 contagens nessa janela. Logo depois de sair do repouso
+// não conta (CARENCIA_TRAVAMENTO_MS). Já perto do fim da célula, considera que chegou.
+constexpr uint32_t JANELA_TRAVAMENTO_MS = 400;
+constexpr int32_t PROGRESSO_MINIMO_RETA = 60;
+constexpr uint32_t CARENCIA_TRAVAMENTO_MS = 300;
+constexpr float FRACAO_CHEGOU_TRAVADO = 0.75f;
 constexpr uint32_t TEMPO_PARADO_MS = 500;
 constexpr float QUEDA_L298N_V = 2.0f;
-constexpr float VELOCIDADE_ARRANQUE = 0.60f;
-constexpr uint32_t TEMPO_ARRANQUE_MS = 150;
+// Impulso para tirar a roda da inércia no começo de cada movimento. Era 0,60 por 200 ms:
+// numa curva de 90° (~0,5 s) o impulso, o dobro da velocidade de curva, dominava o giro e
+// o robô passava do ângulo; voltando devagar, sem impulso, a roda não vencia o atrito e
+// a curva estourava o tempo ("curva travou").
+constexpr float VELOCIDADE_ARRANQUE = 0.45f;
+constexpr uint32_t TEMPO_ARRANQUE_MS = 80;
 constexpr uint32_t TEMPO_MAX_CURVA_MS = 3000;
-// O MPU6050 está montado com o componente para baixo: o giro para a esquerda sai negativo.
-constexpr bool IMU_INVERTIDA = true;
-
 // Correção do zero do giroscópio durante a corrida. O zero medido no boot muda com o
 // tempo e a temperatura, e o erro integrado faz as curvas saírem tortas depois de
 // algumas dezenas de segundos. Parado no centro das células, o robô não gira: o que o
@@ -156,11 +206,11 @@ constexpr float FILTRO_ZERO = 0.5f;           // peso da medida nova
 constexpr uint8_t BOTAO_BOOT = 0;
 
 static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ_IN1,
-                                          Pinos::MOTOR_ESQ_IN2, true};
+                                          Pinos::MOTOR_ESQ_IN2, Pinos::MOTOR_ESQ_INVERTIDO};
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
-                                         Pinos::MOTOR_DIR_IN2, false};
-static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
+                                         Pinos::MOTOR_DIR_IN2, Pinos::MOTOR_DIR_INVERTIDO};
+static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, Pinos::ENC_ESQ_INVERTIDO};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, Pinos::ENC_DIR_INVERTIDO};
 static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
 // Correção do rumo na reta: 0,02 de diferença de velocidade por grau de desvio.
@@ -168,6 +218,15 @@ static Pid pid_rumo(0.02f, 0.0f, 0.001f, PERIODO_MS / 1000.0f, 0.2f);
 
 static Labirinto labirinto(LARGURA, ALTURA);
 static FloodFill floodfill(labirinto);
+static DeteccaoLado deteccao(ALTURA);
+// Passagens por onde o robô já andou: com parede logo na frente numa delas, ele está mais
+// adiante do que contou (navegacao/passagens).
+static Passagens passagens(LARGURA, ALTURA);
+// Lado em uso no mapa. Enquanto a detecção não termina, só a primeira coluna (x = 0) é
+// usada, e nela o lado não muda nada além das laterais, que ficam guardadas na detecção.
+static bool labirinto_a_direita = (LADO_CONFIGURADO != LADO_DESCONHECIDO ? LADO_CONFIGURADO
+                                                                          : LADO_PADRAO) ==
+                                  LADO_DIREITA;
 
 enum Estado {
     AGUARDANDO,
@@ -179,6 +238,8 @@ enum Estado {
     PARADO_CURVA,     // parado depois de uma curva: anda a célula (ou a 2ª metade do 180°)
     RECUANDO,         // a curva travou: ré curta antes de tentar de novo
     PARADO_RECUO,     // parado depois da ré: retoma a curva
+    RECUANDO_RETA,    // travou andando para a frente (parede ou quina): ré curta
+    PARADO_RECUO_RETA,  // parado depois da ré da reta: volta a andar a mesma célula
     CHEGOU,
     ERRO,
 };
@@ -247,8 +308,7 @@ static int indice(Direcao d) {
 // 2 trás, 3 esquerda. Com o labirinto à esquerda do start, o mapa fica espelhado:
 // o leste do mapa é a esquerda do robô.
 static Direcao lado_no_mapa(int passos_direita) {
-    int passos = LABIRINTO_A_DIREITA ? passos_direita : (4 - passos_direita) % 4;
-    return DIRECOES[(indice(direcao) + passos) % 4];
+    return lado_no_mapa(direcao, passos_direita, labirinto_a_direita);
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +331,9 @@ enum CodigoRegistro : uint8_t {
     FIM_CURVA_TRAVOU,
     FIM_SENSOR,
     SENSOR_RECUPERADO,
+    POSICAO_CORRIGIDA,
+    MAPA_ESQUECIDO,
+    RETA_TRAVOU,
 };
 static const char *NOMES_CODIGO[] = {
     "segue", "vira à direita", "volta (180)", "vira à esquerda",
@@ -278,6 +341,8 @@ static const char *NOMES_CODIGO[] = {
     "FIM: posição fora do mapa", "FIM: células demais", "FIM: parado pelo botão",
     "FIM: bateria baixa", "curva travou", "FIM: curva travou de novo",
     "FIM: sensor de distância sem medida", "sensor sem medida: reiniciado, continua",
+    "posição corrigida pela parede", "sem caminho: esqueceu as paredes e segue",
+    "reta travou: ré e segue",
 };
 
 struct __attribute__((packed)) RegistroCelula {
@@ -338,7 +403,7 @@ static void imprimir_registro(const char *chave = "log", const char *titulo = "�
                       r.t_ds / 10.0f, r.x, r.y, NOMES_DIRECAO[r.direcao & 3],
                       (r.paredes & 1) ? 'X' : '.', (r.paredes & 2) ? 'X' : '.',
                       (r.paredes & 4) ? 'X' : '.', r.frente_mm, r.direita_mm, r.esquerda_mm,
-                      r.codigo <= SENSOR_RECUPERADO ? NOMES_CODIGO[r.codigo] : "?");
+                      r.codigo <= RETA_TRAVOU ? NOMES_CODIGO[r.codigo] : "?");
     }
 }
 
@@ -364,7 +429,8 @@ static void comandar(float esquerdo, float direito) {
 // Parado no chão, com os motores desligados ou freados há pelo menos TEMPO_ASSENTAR_MS.
 static bool parado_assentado() {
     bool parado = estado == AGUARDANDO || estado == PARADO_CELULA ||
-                  estado == PARADO_CURVA || estado == PARADO_ALINHADO || estado == PARADO_RECUO;
+                  estado == PARADO_CURVA || estado == PARADO_ALINHADO || estado == PARADO_RECUO ||
+                  estado == PARADO_RECUO_RETA;
     return parado && (estado == AGUARDANDO || millis() - inicio_parado >= TEMPO_ASSENTAR_MS);
 }
 
@@ -378,7 +444,7 @@ static void atualizar_angulo() {
     if (!imu_ler_giro_z(giro_z)) {
         return;
     }
-    giro_z = (IMU_INVERTIDA ? -giro_z : giro_z) - erro_zero_giro;
+    giro_z = (Pinos::IMU_INVERTIDA ? -giro_z : giro_z) - erro_zero_giro;
 
     if (!parado_assentado() || fabsf(giro_z) > GIRO_MAXIMO_PARADO) {
         // Em movimento (ou alguém mexeu no robô parado): integra normalmente.
@@ -398,11 +464,14 @@ static void atualizar_angulo() {
 }
 
 // Ajusta o teto do duty pela tensão da bateria e bloqueia com a bateria no fim.
+static float ultima_tensao = 0.0f;  // para a telemetria (o I2C só é lido aqui)
+
 static bool bateria_ok() {
     float tensao, corrente;
     if (!energia_ler(tensao, corrente)) {
         return true;  // sem INA219, segue com o duty máximo padrão
     }
+    ultima_tensao = tensao;
     motores_definir_duty_maximo(
         bateria_duty_maximo(MOTOR_TENSAO_NOMINAL, tensao - QUEDA_L298N_V));
     return bateria_estado(tensao) != BATERIA_BLOQUEADA;
@@ -466,11 +535,56 @@ static bool comando_start() {
             memoria.remove("celula");
             Serial.printf("Calibração zerada: %ld contagens por célula.\n",
                           (long)contagens_por_celula);
+        } else if (comando == 'g') {
+            // Teste do sentido do giroscópio com o robô no chão, parado no "Pronto": gira no
+            // lugar para a esquerda (roda esquerda para trás, direita para a frente) por
+            // TEMPO_TESTE_GIRO_MS. Os encoders confirmam o sentido físico; o ângulo tem de subir.
+            if (estado == AGUARDANDO || estado == CHEGOU || estado == ERRO) {
+                float angulo_antes = angulo;
+                encoders_zerar();
+                motores_habilitar(true);
+                inicio_movimento = millis();
+                uint32_t inicio_teste = millis();
+                while (millis() - inicio_teste < TEMPO_TESTE_GIRO_MS) {
+                    atualizar_angulo();
+                    comandar(-VELOCIDADE_CURVA_MAX, VELOCIDADE_CURVA_MAX);
+                    delay(PERIODO_MS);
+                }
+                motores_frear();
+                uint32_t inicio_parada = millis();
+                while (millis() - inicio_parada < TEMPO_ASSENTAR_MS) {
+                    atualizar_angulo();
+                    delay(PERIODO_MS);
+                }
+                motores_habilitar(false);
+                int32_t esquerda = encoders_contagem_esquerda();
+                int32_t direita = encoders_contagem_direita();
+                float giro = angulo - angulo_antes;
+                Serial.printf("Teste do giro para a esquerda: ângulo %+.1f graus, encoders %ld / %ld.\n",
+                              giro, (long)esquerda, (long)direita);
+                if (esquerda < 0 && direita > 0) {
+                    Serial.println(giro > 0 ? "Giroscópio certo: girou para a esquerda e o ângulo subiu."
+                                            : "Giroscópio INVERTIDO: girou para a esquerda e o ângulo "
+                                              "desceu. Trocar Pinos::IMU_INVERTIDA.");
+                } else {
+                    Serial.println("As rodas não giraram como esperado (esquerda para trás, direita "
+                                   "para a frente): confira os motores antes do giroscópio.");
+                }
+                angulo = angulo_antes + giro;
+                rumo = angulo;
+            }
+        } else if (comando == 'a') {
+            // Ângulo integrado pelo giroscópio (já com Pinos::IMU_INVERTIDA): girando o robô à mão
+            // para a esquerda, tem de aumentar; para a direita, diminuir.
+            Serial.printf("[%lu s] ângulo %.1f graus (zero do giro %.3f graus/s)\n",
+                          millis() / 1000, angulo, erro_zero_giro);
         } else if (comando == 'd') {
             // Estado dos sensores de distância, sem ligar os motores.
             uint8_t falhas = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
-            Serial.printf("[%lu s] frente %u, esquerda %u, direita %u mm. ", millis() / 1000,
-                          distancias.frente, distancias.esquerda, distancias.direita);
+            Serial.printf("[%lu s] frente %u, esquerda %u, direita %u mm. Encoders %ld / %ld. ",
+                          millis() / 1000, distancias.frente, distancias.esquerda,
+                          distancias.direita, (long)encoders_contagem_esquerda(),
+                          (long)encoders_contagem_direita());
             if (falhas == 0) {
                 Serial.println("Os três medindo.");
             } else {
@@ -486,6 +600,13 @@ static bool comando_start() {
 
 // Inclinação do rumo, em graus, para levar o robô ao centro do corredor pelas paredes
 // laterais. Positivo: perto demais da parede da direita, então inclina para a esquerda.
+static DetectorTravamento travamento_reta(JANELA_TRAVAMENTO_MS, PROGRESSO_MINIMO_RETA,
+                                          CARENCIA_TRAVAMENTO_MS);
+static int32_t contagem_inicio_recuo_reta = 0;
+// O trecho desta célula travou: a contagem e a frente não servem para calibrar o freio
+// nem as contagens por célula.
+static bool trecho_travou = false;
+
 static float inclinacao_centro() {
     static const CalibracaoCentro CENTRO = {CENTRO_ESQUERDA_MM, CENTRO_DIREITA_MM,
                                             LIMIAR_LATERAL_MM, GANHO_CENTRO,
@@ -509,6 +630,8 @@ static void comecar_celula() {
     pid_rumo.zerar();
     inclinacao_filtrada = 0.0f;
     inicio_movimento = millis();
+    travamento_reta.reiniciar(millis(), 0);
+    trecho_travou = false;
     estado = ANDANDO;
 }
 
@@ -518,6 +641,27 @@ static void andar() {
         contagem_freio = contagem_andada();
         parou_pela_parede = parede;
         parar(PARADO_CELULA);
+        return;
+    }
+    if (travamento_reta.atualizar(millis(), contagem_andada())) {
+        Serial.printf("Reta travou em %ld de %ld contagens (frente %u, direita %u, esquerda %u).\n",
+                      (long)contagem_andada(), (long)contagens_por_celula, distancias.frente,
+                      distancias.direita, distancias.esquerda);
+        registrar(RETA_TRAVOU, 0);
+        trecho_travou = true;
+        if (contagem_andada() >= FRACAO_CHEGOU_TRAVADO * contagens_por_celula) {
+            // Quase no fim da célula: em vez de brigar com a quina, considera que chegou.
+            contagem_freio = contagem_andada();
+            parou_pela_parede = false;
+            parar(PARADO_CELULA);
+            return;
+        }
+        // Ré curta sem zerar os encoders: a contagem da célula desconta a ré sozinha.
+        motores_frear();
+        contagem_inicio_recuo_reta = contagem_andada();
+        inicio_recuo = millis();
+        inicio_movimento = millis();
+        estado = RECUANDO_RETA;
         return;
     }
     // Correção positiva: o robô desviou para a direita e precisa virar para a esquerda.
@@ -567,6 +711,7 @@ static void calibrar_celula() {
 
 // graus > 0 vira para a esquerda.
 static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo);
+static void esquecer_mapa(const char *motivo);
 
 // Começa (ou retoma, depois de uma ré) a curva até o rumo atual.
 static void retomar_curva() {
@@ -601,8 +746,17 @@ static float correcao_equilibrio() {
 }
 
 static void virar() {
+    static float sentido_anterior = 0.0f;
     float falta = rumo - angulo;
     float sentido = falta > 0 ? 1.0f : -1.0f;
+    if (millis() - inicio_curva < PERIODO_MS * 2) {
+        sentido_anterior = sentido;  // começo da curva (ou retomada depois da ré)
+    } else if (sentido != sentido_anterior) {
+        // Passou do ângulo e vai voltar: a roda está quase parada, então recebe o
+        // impulso de arranque de novo para vencer o atrito.
+        inicio_movimento = millis();
+        sentido_anterior = sentido;
+    }
     float limite = compensacao[sentido > 0 ? 0 : 1];
     if (fabsf(falta) <= limite) {
         angulo_freio = angulo;
@@ -615,13 +769,8 @@ static void virar() {
         Serial.printf("Curva travou faltando %.1f graus (tentativa %d).\n", falta,
                       tentativas_curva + 1);
         registrar(CURVA_TRAVOU, 0);
-        if (tentativas_curva >= TENTATIVAS_CURVA) {
-            // Seguir com a curva incompleta deixaria o robô virado para um lado e o mapa
-            // achando que é outro: melhor parar e mostrar o motivo.
-            encerrar(FIM_CURVA_TRAVOU, ERRO, "A curva travou de novo depois da ré. Teste encerrado.");
-            return;
-        }
-        // Ré curta para soltar a ponta da parede; o rumo alvo continua o mesmo.
+        // Ré curta para soltar a ponta da parede e nova tentativa, sem limite: o rumo alvo
+        // continua o mesmo (antes parava depois de 2 tentativas, com FIM_CURVA_TRAVOU).
         tentativas_curva++;
         motores_frear();
         encoders_zerar();
@@ -643,6 +792,24 @@ static void virar() {
 }
 
 // Ré curta depois de uma curva travada.
+static void recuar_reta() {
+    int32_t recuou = contagem_inicio_recuo_reta - contagem_andada();
+    if (recuou >= RECUO_CONTAGENS || millis() - inicio_recuo > TEMPO_MAX_RECUO_MS) {
+        parar(PARADO_RECUO_RETA);
+        return;
+    }
+    comandar(-VELOCIDADE_RECUO, -VELOCIDADE_RECUO);
+}
+
+// Depois da ré da reta: volta a andar a mesma célula, com o impulso de arranque. Com
+// espaço, a centralização afasta o robô da parede.
+static void retomar_reta() {
+    pid_rumo.zerar();
+    inicio_movimento = millis();
+    travamento_reta.reiniciar(millis(), contagem_andada());
+    estado = ANDANDO;
+}
+
 static void recuar() {
     int32_t andou = max(abs(encoders_contagem_esquerda()), abs(encoders_contagem_direita()));
     if (andou >= RECUO_CONTAGENS || millis() - inicio_recuo > TEMPO_MAX_RECUO_MS) {
@@ -750,6 +917,233 @@ static uint8_t iniciar_distancia(bool completo) {
     return falhas;
 }
 
+// ---------------------------------------------------------------------------
+// Histórico dos últimos boots na flash: motivo do reinício e se o Wi-Fi conectou.
+// Sem a USB não há serial; isso mostra depois, pela USB, se na bateria a placa ficou
+// reiniciando (ex.: queda de tensão nos picos do rádio) ou se só não achou a rede.
+constexpr int BOOTS_GUARDADOS = 8;
+struct __attribute__((packed)) RegistroBoot {
+    uint8_t motivo;      // esp_reset_reason_t
+    uint8_t chegou;      // 0 = não terminou o setup, 1 = pronto, 2 = Wi-Fi conectou
+    uint16_t segundos;   // quanto tempo ficou ligado (atualizado de tempos em tempos)
+};
+static RegistroBoot boots[BOOTS_GUARDADOS];
+static volatile uint8_t etapa_boot = 0;
+
+static const char *nome_motivo(uint8_t motivo) {
+    switch (motivo) {
+    case ESP_RST_POWERON: return "ligou (energia)";
+    case ESP_RST_EXT: return "pino EN";
+    case ESP_RST_SW: return "software";
+    case ESP_RST_PANIC: return "travou (panic)";
+    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: case ESP_RST_WDT: return "watchdog";
+    case ESP_RST_BROWNOUT: return "QUEDA DE TENSÃO (brownout)";
+    case ESP_RST_DEEPSLEEP: return "deep sleep";
+    default: return "outro";
+    }
+}
+
+// No começo do setup: imprime o histórico e abre um registro novo para este boot.
+static void comecar_registro_boot() {
+    memset(boots, 0, sizeof(boots));
+    memoria.getBytes("boots", boots, sizeof(boots));
+    Serial.println("Últimos boots (mais recente primeiro): motivo, até onde chegou, tempo ligado");
+    for (int i = 0; i < BOOTS_GUARDADOS; i++) {
+        const RegistroBoot &b = boots[i];
+        if (b.motivo == 0 && b.segundos == 0 && b.chegou == 0) {
+            continue;
+        }
+        static const char *ETAPAS[] = {"não terminou o setup", "pronto, sem Wi-Fi",
+                                       "Wi-Fi conectou"};
+        Serial.printf("  %d. %-28s %-22s %u s\n", i + 1, nome_motivo(b.motivo),
+                      ETAPAS[b.chegou < 3 ? b.chegou : 0], b.segundos);
+    }
+    memmove(&boots[1], &boots[0], sizeof(RegistroBoot) * (BOOTS_GUARDADOS - 1));
+    boots[0] = {(uint8_t)esp_reset_reason(), 0, 0};
+    memoria.putBytes("boots", boots, sizeof(boots));
+}
+
+// Chamado no loop(): grava a etapa e o tempo ligado a cada 5 s (ou quando a etapa muda).
+static void atualizar_registro_boot() {
+    static uint32_t ultimo = 0;
+    static uint8_t etapa_gravada = 0;
+    if (etapa_boot == etapa_gravada && millis() - ultimo < 5000) {
+        return;
+    }
+    ultimo = millis();
+    etapa_gravada = etapa_boot;
+    boots[0].chegou = etapa_boot;
+    boots[0].segundos = millis() / 1000 > 65535 ? 65535 : millis() / 1000;
+    // Não grava durante a corrida: escrever na flash pode atrasar o controle.
+    if (estado == AGUARDANDO || estado == CHEGOU || estado == ERRO) {
+        memoria.putBytes("boots", boots, sizeof(boots));
+    }
+}
+
+#ifdef EXPLORAR_WIFI
+// ---------------------------------------------------------------------------
+// Telemetria pelo Wi-Fi. O loop() (núcleo 1) só copia o estado numa estrutura
+// protegida; a tarefa do Wi-Fi (núcleo 0) monta o JSON e envia. Conectar e reconectar
+// pode demorar mais de 1 s, e o controle não pode esperar por isso.
+constexpr uint32_t PERIODO_TELEMETRIA_MS = 100;  // 10 pacotes por segundo
+constexpr uint32_t PERIODO_TAREFA_WIFI_MS = 10;
+constexpr uint32_t PILHA_WIFI = 8192;
+constexpr BaseType_t NUCLEO_WIFI = 0;
+constexpr const char *ROBOT_ID = "mm-01";
+// Campo "maze" do RUN_START: o backend abre a corrida nesse labirinto e a web desenha a
+// grade com esse tamanho (sem o campo, os dois assumem 4x4).
+static_assert(ALTURA == 4 && (LARGURA == 4 || LARGURA == 8 || LARGURA == 12),
+              "o contrato só tem os labirintos 4x4, 8x4 e 12x4");
+constexpr const char *NOME_LABIRINTO = LARGURA == 4 ? "4x4" : LARGURA == 8 ? "8x4" : "12x4";
+constexpr uint8_t EVENTO_INICIO = 1;
+constexpr uint8_t EVENTO_OBJETIVO = 2;
+constexpr uint8_t EVENTO_FIM = 4;
+
+static portMUX_TYPE trava_wifi = portMUX_INITIALIZER_UNLOCKED;
+static DadosTelemetria dados_wifi = {};
+static uint8_t eventos_wifi = 0;
+
+static void evento_wifi(uint8_t evento) {
+    portENTER_CRITICAL(&trava_wifi);
+    eventos_wifi |= evento;
+    portEXIT_CRITICAL(&trava_wifi);
+}
+
+static EstadoRobo estado_telemetria() {
+    switch (estado) {
+    case AGUARDANDO: return ROBO_PARADO;
+    case CHEGOU: return ROBO_OBJETIVO;
+    case ERRO: return ROBO_ERRO;
+    default: return ROBO_EXPLORANDO;
+    }
+}
+
+// Chamado a cada ciclo do loop(): copia posição, paredes, velocidade e estado.
+static void publicar_telemetria() {
+    static uint32_t ultimo_ms = 0;
+    static int32_t ultima_contagem = 0;
+    static float velocidade = 0.0f;
+    uint32_t agora = millis();
+    int32_t contagem = estado == ANDANDO ? contagem_andada() : 0;
+    float mm_por_contagem = TAMANHO_CELULA_MM / contagens_por_celula;
+    if (agora - ultimo_ms >= PERIODO_TELEMETRIA_MS) {
+        // A contagem volta a zero a cada trecho; uma queda conta desde o zero.
+        int32_t andou = contagem >= ultima_contagem ? contagem - ultima_contagem : contagem;
+        velocidade = andou * mm_por_contagem * 1000.0f / (agora - ultimo_ms);
+        ultimo_ms = agora;
+        ultima_contagem = contagem;
+    }
+
+    // A web usa as coordenadas do mapa do explorar, sem espelhar: start em (0,0), objetivo
+    // no canto oposto e x crescendo para o lado em que o labirinto continua (MazeMap.tsx e
+    // o RUN_START do frontend põem o robô em (0,0)). Com o labirinto à esquerda do start,
+    // o desenho fica espelhado em relação ao real, mas start, objetivo e paredes batem.
+    uint8_t paredes = 0;
+    if (labirinto.dentro(pos_x, pos_y)) {
+        for (Direcao lado : {NORTE, LESTE, SUL, OESTE}) {
+            if (labirinto.temParede(pos_x, pos_y, lado)) {
+                paredes |= lado;
+            }
+        }
+        // Primeira coluna com o lado ainda desconhecido: no mapa, a borda é sempre o oeste
+        // (já marcada) e o lado do labirinto é o leste. As laterais lidas ficam guardadas
+        // na detecção até o lado aparecer; com as duas fechadas, o leste é parede.
+        if (deteccao.lado() == LADO_DESCONHECIDO && deteccao.parede(pos_y, 1) &&
+            deteccao.parede(pos_y, 3)) {
+            paredes |= LESTE;
+        }
+    }
+    DadosTelemetria dados;
+    dados.x = pos_x;
+    dados.y = pos_y;
+    dados.direcao = direcao;
+    dados.velocidade_mm_s = velocidade;
+    dados.odometria_mm = lroundf(celulas_andadas * TAMANHO_CELULA_MM + contagem * mm_por_contagem);
+    dados.bateria_pct = ultima_tensao > 0.0f ? bateria_carga(ultima_tensao) : 0.0f;
+    dados.paredes = paredes;
+    dados.estado = estado_telemetria();
+
+    portENTER_CRITICAL(&trava_wifi);
+    dados_wifi = dados;
+    portEXIT_CRITICAL(&trava_wifi);
+}
+
+static void tarefa_wifi(void *) {
+    comunicacao_iniciar();
+    Telemetria telemetria(ROBOT_ID);
+    char texto[TELEMETRIA_TAMANHO_MAX];
+    uint32_t ultimo_pacote = 0;
+    bool estava_conectado = false;
+    bool em_corrida = false;
+    for (;;) {
+        comunicacao_atualizar();
+        bool conectado = comunicacao_conectada();
+        if (conectado != estava_conectado) {
+            Serial.println(conectado ? "Wi-Fi: WebSocket conectado" : "Wi-Fi: sem conexão");
+            estava_conectado = conectado;
+            if (conectado) {
+                etapa_boot = 2;
+            }
+            if (conectado) {
+                // O giroscópio já calibrou no setup: a web mostra "Sensores calibrados"
+                // (C2). O evento também zera o controle de seq do backend, que descarta
+                // seq <= o último visto e o robô zera o seq a cada reinício (o backend
+                // também zera na primeira mensagem de cada conexão, PR #372).
+                int tamanho = telemetria.calibracao(millis(), true, texto, sizeof(texto));
+                if (tamanho > 0) {
+                    comunicacao_enviar(texto, tamanho);
+                }
+            }
+        }
+
+        portENTER_CRITICAL(&trava_wifi);
+        uint8_t eventos = eventos_wifi;
+        eventos_wifi = 0;
+        portEXIT_CRITICAL(&trava_wifi);
+        if (eventos & EVENTO_FIM) {
+            // O loop() atualiza o estado final no ciclo seguinte ao encerrar: espera um
+            // pouco para o último pacote já sair com GOAL_REACHED ou ERROR.
+            vTaskDelay(pdMS_TO_TICKS(3 * PERIODO_MS));
+        }
+        portENTER_CRITICAL(&trava_wifi);
+        DadosTelemetria dados = dados_wifi;
+        portEXIT_CRITICAL(&trava_wifi);
+
+        uint32_t agora = millis();
+        int tamanho;
+        if (eventos & EVENTO_INICIO) {
+            tamanho = telemetria.inicio(agora, dados.bateria_pct, texto, sizeof(texto),
+                                        NOME_LABIRINTO);
+            if (tamanho > 0) comunicacao_enviar(texto, tamanho);
+            em_corrida = true;
+            ultimo_pacote = agora - PERIODO_TELEMETRIA_MS;  // primeiro pacote já
+        }
+        // Telemetria só durante a corrida (contrato, seção 2): o backend abre uma corrida
+        // automática para telemetria que chega sem corrida ativa, então pacotes do robô
+        // parado no "Pronto" ou depois do fim criariam corridas falsas no histórico.
+        bool fim = (eventos & EVENTO_FIM) != 0;
+        if (em_corrida && (fim || agora - ultimo_pacote >= PERIODO_TELEMETRIA_MS)) {
+            ultimo_pacote = agora;
+            tamanho = telemetria.pacote(agora, dados, texto, sizeof(texto));
+            if (tamanho > 0) {
+                // Sem conexão o pacote é descartado; o backend vê a lacuna no seq.
+                comunicacao_enviar(texto, tamanho);
+            }
+        }
+        if (eventos & EVENTO_OBJETIVO) {
+            tamanho = telemetria.objetivo(agora, dados.x, dados.y, texto, sizeof(texto));
+            if (tamanho > 0) comunicacao_enviar(texto, tamanho);
+        }
+        if (fim) {
+            tamanho = telemetria.fim(agora, texto, sizeof(texto));
+            if (tamanho > 0) comunicacao_enviar(texto, tamanho);
+            em_corrida = false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(PERIODO_TAREFA_WIFI_MS));
+    }
+}
+#endif
+
 // Um sensor parou de medir no meio da corrida (nas corridas, o da esquerda, por
 // alguns instantes). Em vez de encerrar: freia, tenta iniciar de novo só esse sensor e,
 // se ele voltar, segue do mesmo estado. Os prazos (curva, ré, alinhamento, parado)
@@ -766,10 +1160,24 @@ static bool recuperar_sensores() {
         atualizar_angulo();
         delay(PERIODO_MS);
     }
-    falhas_distancia = iniciar_distancia(false);
-    if (falhas_distancia != 0) {
-        return false;
+    // Tenta de novo a cada TEMPO_TENTAR_SENSOR_MS, parado, até o sensor voltar. Só sai sem
+    // ele pelo BOOT (parar) ou com a bateria baixa.
+    for (;;) {
+        falhas_distancia = iniciar_distancia(false);
+        if (falhas_distancia == 0) {
+            break;
+        }
+        uint32_t espera = millis();
+        while (millis() - espera < TEMPO_TENTAR_SENSOR_MS) {
+            atualizar_angulo();
+            digitalWrite(Pinos::LED_STATUS, (millis() / 100) % 2);
+            if (digitalRead(BOTAO_BOOT) == LOW || !bateria_ok()) {
+                return false;
+            }
+            delay(PERIODO_MS);
+        }
     }
+    digitalWrite(Pinos::LED_STATUS, HIGH);
     uint32_t pausa = millis() - inicio_pausa;
     inicio_curva += pausa;
     inicio_recuo += pausa;
@@ -785,6 +1193,10 @@ static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo) {
     motores_frear();
     motores_habilitar(false);
     estado = final;
+#ifdef EXPLORAR_WIFI
+    // Contrato: GOAL_REACHED e depois RUN_END ao chegar; só RUN_END nos outros fins.
+    evento_wifi(final == CHEGOU ? (EVENTO_OBJETIVO | EVENTO_FIM) : EVENTO_FIM);
+#endif
     // No FIM_SENSOR, as colunas de parede marcam com X os sensores que falharam.
     registrar(codigo, codigo == FIM_SENSOR ? falhas_para_colunas(falhas_distancia) : 0);
     Serial.println(motivo);
@@ -798,8 +1210,65 @@ static void encerrar(CodigoRegistro codigo, Estado final, const char *motivo) {
 // sensores laterais enxergam as paredes da célula seguinte, e como o mapa só ganha
 // paredes, uma leitura errada fecharia a saída de vez (foi o que deu "sem caminho" em
 // (0,2)). Nesse caso só a frente é lida; as laterais ficam como foram lidas no centro.
+// Define o lado do labirinto e passa para o mapa as paredes laterais guardadas.
+static void definir_lado(LadoLabirinto lado, const char *como) {
+    labirinto_a_direita = lado == LADO_DIREITA;
+    deteccao.aplicar(labirinto);
+    Serial.printf("Lado do labirinto: %s (%s).\n",
+                  labirinto_a_direita ? "à direita do start" : "à esquerda do start", como);
+}
+
+// Primeira coluna, lado ainda desconhecido: amostra as laterais algumas vezes, com o
+// robô parado no centro da célula. Com parede na frente, relê antes de escolher.
+static void detectar_lado(bool frente) {
+    int leituras = frente ? 1 + RELEITURAS_SEM_SAIDA : 1;
+    for (int k = 0; k < leituras && deteccao.lado() == LADO_DESCONHECIDO; k++) {
+        bool direita_aberta[AMOSTRAS_LADO], esquerda_aberta[AMOSTRAS_LADO];
+        for (int i = 0; i < AMOSTRAS_LADO; i++) {
+            uint32_t inicio = millis();
+            while (millis() - inicio < INTERVALO_AMOSTRA_LADO_MS) {
+                atualizar_angulo();
+                distancia_ler(distancias);
+                delay(5);
+            }
+            direita_aberta[i] = lado_livre(distancias.direita);
+            esquerda_aberta[i] = lado_livre(distancias.esquerda);
+        }
+        if (deteccao.celula(pos_y, direita_aberta, esquerda_aberta, AMOSTRAS_LADO) !=
+            LADO_DESCONHECIDO) {
+            definir_lado(deteccao.lado(), "abertura na primeira coluna");
+            return;
+        }
+    }
+    if (frente) {
+        definir_lado(deteccao.escolher(LADO_PADRAO), "parede no fim da coluna, sem abertura clara");
+    }
+}
+
 static void ler_paredes(bool &frente, bool &direita, bool &esquerda, bool so_frente) {
     frente = distancias.frente < LIMIAR_PAREDE_FRENTE_MM;
+    if (deteccao.lado() == LADO_DESCONHECIDO) {
+        if (so_frente) {
+            // Fora do centro da célula: as laterais não servem para a detecção.
+            if (frente) {
+                definir_lado(deteccao.escolher(LADO_PADRAO), "parede logo na frente");
+            }
+        } else {
+            detectar_lado(frente);
+        }
+        if (deteccao.lado() == LADO_DESCONHECIDO) {
+            // Ainda na primeira coluna: o norte é igual nos dois mapas; as laterais
+            // ficam guardadas na detecção.
+            direita = deteccao.parede(pos_y, 1);
+            esquerda = deteccao.parede(pos_y, 3);
+            if (frente) {
+                labirinto.colocarParede(pos_x, pos_y, NORTE);
+            }
+            return;
+        }
+        // Lado definido nesta célula: as laterais dela já foram para o mapa.
+        so_frente = true;
+    }
     if (so_frente) {
         direita = labirinto.temParede(pos_x, pos_y, lado_no_mapa(1));
         esquerda = labirinto.temParede(pos_x, pos_y, lado_no_mapa(3));
@@ -835,18 +1304,45 @@ static void decidir(bool so_frente = false) {
         return;
     }
 
-    Direcao proxima;
-    if (!floodfill.proximaDirecao(pos_x, pos_y, direcao, proxima)) {
-        encerrar(FIM_SEM_CAMINHO, ERRO,
-                 "Sem caminho até o objetivo: alguma parede foi lida errada.");
+    if (deteccao.lado() == LADO_DESCONHECIDO) {
+        // Primeira coluna sem abertura confirmada: o único caminho é seguir reto.
+        Serial.printf("(%d,%d) lado do labirinto ainda desconhecido (direita %s, esquerda %s): "
+                      "segue.\n",
+                      pos_x, pos_y, direita ? "parede" : "aberta", esquerda ? "parede" : "aberta");
+        registrar(ACAO_SEGUE, (frente ? 1 : 0) | (direita ? 2 : 0) | (esquerda ? 4 : 0));
+        direcao_alvo = direcao;
+        comecar_celula();
         return;
     }
 
-    // Quantas vezes 90° para a direita (do mapa) separam a direção atual da próxima.
-    int passos = (indice(proxima) - indice(direcao) + 4) % 4;
-    if (!LABIRINTO_A_DIREITA) {
-        passos = (4 - passos) % 4;  // mapa espelhado: direita do mapa é esquerda do robô
+    Direcao proxima;
+    if (!floodfill.proximaDirecao(pos_x, pos_y, direcao, proxima)) {
+        // Alguma parede foi lida errada e fechou o caminho. Em vez de parar: esquece as
+        // paredes internas e segue explorando daqui, marcando só as desta célula.
+        esquecer_mapa("sem caminho até o objetivo");
+        if (frente) labirinto.colocarParede(pos_x, pos_y, lado_no_mapa(0));
+        if (direita) labirinto.colocarParede(pos_x, pos_y, lado_no_mapa(1));
+        if (esquerda) labirinto.colocarParede(pos_x, pos_y, lado_no_mapa(3));
+        if (!floodfill.proximaDirecao(pos_x, pos_y, direcao, proxima)) {
+            // As três leituras daqui fecham tudo, mas alguma saída existe: vai para o lado
+            // que mede mais longe (uma quina vista na diagonal dá 75 a 93 mm; parede de
+            // verdade, 20 a 60). Voltar não serve: na célula do start, atrás é a borda.
+            uint16_t medidas[3] = {distancias.frente, distancias.direita, distancias.esquerda};
+            static const int LADOS[3] = {0, 1, 3};
+            int melhor = 0;
+            for (int k = 1; k < 3; k++) {
+                if (medidas[k] > medidas[melhor]) {
+                    melhor = k;
+                }
+            }
+            proxima = lado_no_mapa(LADOS[melhor]);
+            Serial.printf("Todas as saídas lidas como parede: vai para o lado mais aberto (%u mm).\n",
+                          medidas[melhor]);
+        }
     }
+
+    // Quantas vezes 90° para a direita (do mapa) separam a direção atual da próxima.
+    int passos = passos_ate(direcao, proxima, labirinto_a_direita);
     static const char *ACOES[] = {"segue", "vira à direita", "volta", "vira à esquerda"};
     Serial.printf("(%d,%d) virado para %s. Paredes: frente %s, direita %s, esquerda %s. "
                   "Distância %u. Vai para %s: %s.\n",
@@ -890,8 +1386,43 @@ static int celulas_no_trecho() {
 }
 
 // Robô parado depois de andar uma célula: atualiza a posição e decide.
+// O mapa ficou inconsistente (caminho fechado por parede lida errada, posição fora do
+// mapa): volta só com a borda externa e segue explorando. As passagens já percorridas
+// continuam valendo e o lado do labirinto também.
+static void esquecer_mapa(const char *motivo) {
+    labirinto = Labirinto(LARGURA, ALTURA);
+    Serial.printf("%s: esqueceu as paredes internas e segue explorando de (%d,%d).\n", motivo,
+                  pos_x, pos_y);
+    registrar(MAPA_ESQUECIDO, 0);
+}
+
+// Parado com parede logo na frente numa passagem que o robô já percorreu: ele andou mais
+// do que contou (aconteceu ao voltar de um beco depois da meia-volta). Avança a posição
+// até a primeira célula sem passagem conhecida à frente. Retorna as células corrigidas.
+static int corrigir_posicao() {
+    if (distancias.frente >= LIMIAR_PAREDE_FRENTE_MM) {
+        return 0;
+    }
+    int antes_x = pos_x, antes_y = pos_y;
+    int corrigidas = passagens.corrigir(pos_x, pos_y, direcao, labirinto);
+    if (corrigidas > 0) {
+        celulas_andadas += corrigidas;
+        Serial.printf("Parede a %u mm numa passagem já percorrida: posição corrigida de "
+                      "(%d,%d) para (%d,%d).\n",
+                      distancias.frente, antes_x, antes_y, pos_x, pos_y);
+        registrar(POSICAO_CORRIGIDA, 0);
+    }
+    return corrigidas;
+}
+
 static void chegou_na_celula() {
     int celulas = celulas_no_trecho();
+    if (celulas == 0 && corrigir_posicao() > 0) {
+        // Contou zero, mas a parede está numa passagem conhecida: já está em outra célula,
+        // parado com a parede logo na frente (perto do centro). Lê as paredes normalmente.
+        decidir();
+        return;
+    }
     if (celulas == 0) {
         // Parou pela parede quase sem sair do lugar: ela estava logo na frente e não foi
         // vista antes de virar. O robô continua na mesma célula; o decidir() marca essa
@@ -906,19 +1437,23 @@ static void chegou_na_celula() {
         // Passou de células sem parar (os encoders contaram mais de 1,5 célula): a posição
         // acompanha a contagem. As paredes laterais dessas células ficam sem marcar.
         Serial.printf("Andou %d células sem parar: confira os encoders.\n", celulas);
-    } else {
+    } else if (!trecho_travou) {
         ajustar_freio();
         calibrar_celula();
     }
     for (int i = 0; i < celulas; i++) {
+        passagens.marcar(pos_x, pos_y, direcao);
         avancar(direcao, pos_x, pos_y);
         celulas_andadas++;
     }
     if (!labirinto.dentro(pos_x, pos_y)) {
-        encerrar(FIM_FORA_DO_MAPA, ERRO,
-                 "Posição fora do mapa: confira LARGURA, ALTURA e LABIRINTO_A_DIREITA.");
-        return;
+        // A contagem passou da borda: a posição está errada. Traz para dentro e recomeça o
+        // mapa (antes parava com FIM_FORA_DO_MAPA). Confira LARGURA, ALTURA e o lado.
+        pos_x = constrain(pos_x, 0, LARGURA - 1);
+        pos_y = constrain(pos_y, 0, ALTURA - 1);
+        esquecer_mapa("posição fora do mapa");
     }
+    corrigir_posicao();
     decidir();
 }
 
@@ -935,6 +1470,10 @@ void setup() {
     // O registro da última corrida aparece antes de tudo: assim ele é lido só com a
     // USB, mesmo que os sensores não respondam sem a bateria. "r" mostra de novo.
     memoria.begin("explorar", false);
+    comecar_registro_boot();
+    if (LADO_CONFIGURADO != LADO_DESCONHECIDO) {
+        deteccao.definir(LADO_CONFIGURADO);  // lado forçado no código: sem detecção
+    }
     if (memoria.getBytesLength("anterior") > 0) {
         imprimir_registro("anterior", "Corrida anterior");
     }
@@ -960,12 +1499,19 @@ void setup() {
     if (!energia_iniciar(Wire)) {
         Serial.println("Aviso: INA219 não respondeu. O duty máximo fica no padrão.");
     }
-    if (!imu_iniciar(Wire)) {
-        // Sem giroscópio o robô não anda reto nem sabe quando terminou a curva.
-        Serial.println("Erro: MPU6050 não respondeu. Teste cancelado.");
-        for (;;) {
-            digitalWrite(Pinos::LED_STATUS, !digitalRead(Pinos::LED_STATUS));
-            delay(100);
+    // Sem giroscópio o robô não anda reto nem sabe quando terminou a curva. O contato do
+    // MPU6050 falhou várias vezes e voltou sozinho: em vez de desistir, tenta de novo a
+    // cada TEMPO_TENTAR_IMU_MS (LED piscando rápido) e segue assim que ele responder.
+    for (int tentativa = 1; !imu_iniciar(Wire); tentativa++) {
+        if (tentativa == 1) {
+            Serial.println("Erro: MPU6050 não respondeu. Tentando de novo (confira os fios dele).");
+        } else if (tentativa % 20 == 0) {
+            Serial.printf("MPU6050 ainda sem resposta (%d tentativas).\n", tentativa);
+        }
+        uint32_t inicio = millis();
+        while (millis() - inicio < TEMPO_TENTAR_IMU_MS) {
+            digitalWrite(Pinos::LED_STATUS, (millis() / 100) % 2);
+            delay(10);
         }
     }
 
@@ -978,6 +1524,14 @@ void setup() {
     }
 
     digitalWrite(Pinos::LED_STATUS, HIGH);
+    bateria_ok();  // lê a tensão uma vez, para a telemetria já começar com a bateria
+    etapa_boot = 1;
+    Serial.printf("Bateria: %.2f V\n", ultima_tensao);
+#ifdef EXPLORAR_WIFI
+    // Só depois da calibração do giroscópio: o rádio liga com o robô já pronto.
+    xTaskCreatePinnedToCore(tarefa_wifi, "wifi", PILHA_WIFI, nullptr, 1, nullptr, NUCLEO_WIFI);
+    Serial.println("Wi-Fi: conectando (telemetria a cada 100 ms).");
+#endif
     Serial.printf("Pronto para o labirinto %dx%d. Aperte BOOT ou envie \"s\".\n", LARGURA,
                   ALTURA);
 }
@@ -991,6 +1545,10 @@ void loop() {
 
     atualizar_angulo();
     distancia_ler(distancias);
+    atualizar_registro_boot();
+#ifdef EXPLORAR_WIFI
+    publicar_telemetria();
+#endif
 
     if (comando_start()) {
         if (estado == AGUARDANDO || estado == CHEGOU || estado == ERRO) {
@@ -1027,6 +1585,9 @@ void loop() {
             equilibrio_desligado = false;
             motores_habilitar(true);
             digitalWrite(Pinos::LED_STATUS, HIGH);
+#ifdef EXPLORAR_WIFI
+            evento_wifi(EVENTO_INICIO);
+#endif
             decidir();
         } else {
             encerrar(FIM_BOTAO, AGUARDANDO,
@@ -1038,7 +1599,12 @@ void loop() {
     if (estado != AGUARDANDO && estado != CHEGOU && estado != ERRO) {
         falhas_distancia = distancia_falhas(IDADE_MAXIMA_DISTANCIA_MS);
         if (falhas_distancia != 0 && !recuperar_sensores()) {
-            encerrar(FIM_SENSOR, ERRO, "Sensor de distância parou de medir. Teste encerrado.");
+            if (!bateria_ok()) {
+                encerrar(FIM_BATERIA, ERRO, "Bateria abaixo de 6,6 V. Teste encerrado.");
+            } else {
+                encerrar(FIM_BOTAO, AGUARDANDO,
+                         "Parado pelo botão. Aperte de novo para recomeçar do start.");
+            }
             return;
         }
     }
@@ -1066,6 +1632,14 @@ void loop() {
     case PARADO_RECUO:
         if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
             retomar_curva();
+        }
+        break;
+    case RECUANDO_RETA:
+        recuar_reta();
+        break;
+    case PARADO_RECUO_RETA:
+        if (millis() - inicio_parado >= TEMPO_PARADO_MS) {
+            retomar_reta();
         }
         break;
     case ALINHANDO:

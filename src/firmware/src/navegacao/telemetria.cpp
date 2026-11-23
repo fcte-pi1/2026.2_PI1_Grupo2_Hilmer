@@ -68,9 +68,17 @@ int Telemetria::calibracao(uint32_t t_ms, bool ok, char* saida, size_t tamanho) 
     return montar("event", t_ms, campos, saida, tamanho);
 }
 
-int Telemetria::inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho) {
-    char campos[64];
-    snprintf(campos, sizeof(campos), "\"event\":\"RUN_START\",\"battery_pct\":%.1f", bateria_pct);
+int Telemetria::inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho,
+                       const char* labirinto) {
+    char campos[80];
+    if (labirinto != nullptr) {
+        snprintf(campos, sizeof(campos),
+                 "\"event\":\"RUN_START\",\"maze\":\"%s\",\"battery_pct\":%.1f", labirinto,
+                 bateria_pct);
+    } else {
+        snprintf(campos, sizeof(campos), "\"event\":\"RUN_START\",\"battery_pct\":%.1f",
+                 bateria_pct);
+    }
     return montar("event", t_ms, campos, saida, tamanho);
 }
 

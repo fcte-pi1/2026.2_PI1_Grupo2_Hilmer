@@ -66,19 +66,17 @@ constexpr float QUEDA_L298N_V = 2.0f;
 constexpr float GANHO_EQUILIBRIO = 0.01f;
 constexpr float EQUILIBRIO_MAXIMO = 0.2f;
 
-// O MPU6050 está montado com o componente para baixo: o giro para a esquerda sai negativo.
-constexpr bool IMU_INVERTIDA = true;
 // Ângulo de curva usado hoje no exemplo_explorar, para comparar.
 constexpr float ANGULO_CURVA_ATUAL = 85.0f;
 
 constexpr uint8_t BOTAO_BOOT = 0;
 
 static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ_IN1,
-                                          Pinos::MOTOR_ESQ_IN2, true};
+                                          Pinos::MOTOR_ESQ_IN2, Pinos::MOTOR_ESQ_INVERTIDO};
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
-                                         Pinos::MOTOR_DIR_IN2, false};
-static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
+                                         Pinos::MOTOR_DIR_IN2, Pinos::MOTOR_DIR_INVERTIDO};
+static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, Pinos::ENC_ESQ_INVERTIDO};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, Pinos::ENC_DIR_INVERTIDO};
 static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 
 enum Estado { AGUARDANDO, GIRANDO, PARADO, FIM_OK, FIM_ERRO };
@@ -129,7 +127,7 @@ static void atualizar_angulo() {
     ultimo_us = agora_us;
     float giro_z;
     if (imu_ler_giro_z(giro_z)) {
-        velocidade_giro = IMU_INVERTIDA ? -giro_z : giro_z;
+        velocidade_giro = Pinos::IMU_INVERTIDA ? -giro_z : giro_z;
         angulo += velocidade_giro * dt;
     }
 }

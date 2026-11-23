@@ -31,12 +31,12 @@ constexpr uint8_t BOTAO_BOOT = 0;
 
 static const PinosDistancia PINOS_DISTANCIA = {Pinos::XSHUT_FRENTE, Pinos::XSHUT_ESQUERDA};
 static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ_IN1,
-                                          Pinos::MOTOR_ESQ_IN2, true};
+                                          Pinos::MOTOR_ESQ_IN2, Pinos::MOTOR_ESQ_INVERTIDO};
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
-                                         Pinos::MOTOR_DIR_IN2, false};
+                                         Pinos::MOTOR_DIR_IN2, Pinos::MOTOR_DIR_INVERTIDO};
 
-static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
+static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, Pinos::ENC_ESQ_INVERTIDO};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, Pinos::ENC_DIR_INVERTIDO};
 
 static Distancias distancias = {DISTANCIA_INVALIDA, DISTANCIA_INVALIDA, DISTANCIA_INVALIDA};
 
@@ -61,7 +61,7 @@ static const char *fase(uint32_t t) {
     return "parado ";
 }
 
-static void rodar_teste() {
+static void rodar_teste(float velocidade_esquerda, float velocidade_direita) {
     encoders_zerar();
     Serial.println("\n  t(s)  fase      bateria V   I (mA) | frente esquerda direita | enc esq  enc dir | sem medida");
     uint32_t inicio = millis();
@@ -77,7 +77,7 @@ static void rodar_teste() {
         bool girar = t >= PARADO_ANTES_MS && t < PARADO_ANTES_MS + GIRANDO_MS;
         if (girar && !motores_ligados) {
             motores_habilitar(true);
-            motores_definir_velocidade(VELOCIDADE, VELOCIDADE);
+            motores_definir_velocidade(velocidade_esquerda, velocidade_direita);
             motores_ligados = true;
         } else if (!girar && motores_ligados) {
             motores_frear();
@@ -141,15 +141,27 @@ void setup() {
 }
 
 void loop() {
+    // "s" ou BOOT: os dois motores. "e": só o motor esquerdo. "d": só o direito
+    // (confere se cada canal da ponte H move a roda do próprio lado).
     bool start = digitalRead(BOTAO_BOOT) == LOW;
+    float ve = VELOCIDADE, vd = VELOCIDADE;
     while (Serial.available() > 0) {
-        if (Serial.read() == 's') {
+        char c = Serial.read();
+        if (c == 's') {
             start = true;
+        } else if (c == 'e') {
+            start = true;
+            vd = 0.0f;
+            Serial.println("Só o motor esquerdo (canal A: ENA/IN1/IN2).");
+        } else if (c == 'd') {
+            start = true;
+            ve = 0.0f;
+            Serial.println("Só o motor direito (canal B: ENB/IN3/IN4).");
         }
     }
     distancia_ler(distancias);
     if (start) {
-        rodar_teste();
+        rodar_teste(ve, vd);
         while (true) {
             delay(1000);
         }
