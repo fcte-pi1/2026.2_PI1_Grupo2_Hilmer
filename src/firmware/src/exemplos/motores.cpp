@@ -14,9 +14,9 @@
 #include "motores/motores.h"
 
 static const PinosMotor MOTOR_ESQUERDO = {Pinos::MOTOR_ESQ_PWM, Pinos::MOTOR_ESQ_IN1,
-                                          Pinos::MOTOR_ESQ_IN2, false};
+                                          Pinos::MOTOR_ESQ_IN2, true};
 static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_IN1,
-                                         Pinos::MOTOR_DIR_IN2, true};
+                                         Pinos::MOTOR_DIR_IN2, false};
 
 constexpr float VELOCIDADE_TESTE = 0.5f;
 constexpr uint32_t TEMPO_GIRO_MS = 2000;
