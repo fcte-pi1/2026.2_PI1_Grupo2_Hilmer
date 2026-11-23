@@ -67,15 +67,41 @@ describe('HistoricoDashboard - Exclusão de corridas', () => {
     expect(botaoExcluir).toBeDisabled();
   });
 
-  it('deve habilitar o botão com a contagem ao marcar corridas e abrir o modal com a quantidade correta', async () => {
+  it('deve impedir a seleção de corridas em andamento', async () => {
+    const user = userEvent.setup();
+    render(<HistoricoDashboard corridas={corridasMock} />);
+
+    const checkboxEmAndamento = screen.getByLabelText(
+      'Selecionar corrida #2',
+    );
+
+    expect(checkboxEmAndamento).toBeDisabled();
+    expect(checkboxEmAndamento).not.toBeChecked();
+
+    await user.click(checkboxEmAndamento);
+
+    expect(checkboxEmAndamento).not.toBeChecked();
+    expect(
+      screen.getByRole('button', { name: /excluir selecionadas/i }),
+    ).toBeDisabled();
+  });
+
+  it('deve habilitar o botão com a contagem correta e abrir o modal com a quantidade de corridas selecionadas', async () => {
     const user = userEvent.setup();
     render(<HistoricoDashboard corridas={corridasMock} />);
 
     const checkbox1 = screen.getByLabelText('Selecionar corrida #1');
     const checkbox2 = screen.getByLabelText('Selecionar corrida #2');
+    const checkbox3 = screen.getByLabelText('Selecionar corrida #3');
+
+    expect(checkbox2).toBeDisabled();
 
     await user.click(checkbox1);
-    await user.click(checkbox2);
+    await user.click(checkbox3);
+
+    expect(checkbox1).toBeChecked();
+    expect(checkbox2).not.toBeChecked();
+    expect(checkbox3).toBeChecked();
 
     const botaoExcluir = screen.getByRole('button', {
       name: 'Excluir selecionadas (2)',
@@ -108,7 +134,28 @@ describe('HistoricoDashboard - Exclusão de corridas', () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('deve fechar o modal, limpar checkboxes e NÃO fazer requisição ao clicar no botão X', async () => {
+  it('deve selecionar todas as corridas elegíveis, ignorando as que estão em andamento', async () => {
+    const user = userEvent.setup();
+    render(<HistoricoDashboard corridas={corridasMock} />);
+
+    const checkboxTodas = screen.getByLabelText('Selecionar todas as corridas');
+    const checkbox1 = screen.getByLabelText('Selecionar corrida #1');
+    const checkbox2 = screen.getByLabelText('Selecionar corrida #2');
+    const checkbox3 = screen.getByLabelText('Selecionar corrida #3');
+
+    await user.click(checkboxTodas);
+
+    expect(checkboxTodas).toBeChecked();
+    expect(checkbox1).toBeChecked();
+    expect(checkbox2).toBeDisabled();
+    expect(checkbox2).not.toBeChecked();
+    expect(checkbox3).toBeChecked();
+    expect(
+      screen.getByRole('button', { name: 'Excluir selecionadas (2)' }),
+    ).toBeEnabled();
+  });
+
+  it('deve fechar o modal, limpar seleção e NÃO fazer requisição ao clicar no botão X', async () => {
     const user = userEvent.setup();
     render(<HistoricoDashboard corridas={corridasMock} />);
 
@@ -116,16 +163,19 @@ describe('HistoricoDashboard - Exclusão de corridas', () => {
     await user.click(checkboxTodas);
 
     await user.click(
-      screen.getByRole('button', { name: 'Excluir selecionadas (3)' }),
+      screen.getByRole('button', { name: 'Excluir selecionadas (2)' }),
     );
     await user.click(screen.getByRole('button', { name: 'Fechar modal' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(checkboxTodas).not.toBeChecked();
+    expect(screen.getByLabelText('Selecionar corrida #1')).not.toBeChecked();
+    expect(screen.getByLabelText('Selecionar corrida #2')).not.toBeChecked();
+    expect(screen.getByLabelText('Selecionar corrida #3')).not.toBeChecked();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('deve enviar DELETE /runs, limpar seleção, fechar modal e atualizar dados ao confirmar', async () => {
+  it('deve enviar DELETE /runs apenas com as corridas selecionadas e elegíveis, limpar seleção, fechar modal e atualizar dados ao confirmar', async () => {
     const user = userEvent.setup();
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
@@ -160,6 +210,7 @@ describe('HistoricoDashboard - Exclusão de corridas', () => {
     });
 
     expect(screen.getByLabelText('Selecionar corrida #1')).not.toBeChecked();
+    expect(screen.getByLabelText('Selecionar corrida #2')).not.toBeChecked();
     expect(screen.getByLabelText('Selecionar corrida #3')).not.toBeChecked();
     expect(mockRefresh).toHaveBeenCalledTimes(1);
   });

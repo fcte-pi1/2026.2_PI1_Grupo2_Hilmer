@@ -64,10 +64,20 @@ export function HistoricoDashboard({
     (c) => c.bateriaInicial !== null && c.bateriaFinal !== null,
   );
 
+  // Corridas em andamento são exibidas no histórico, mas nunca podem ser
+  // selecionadas para exclusão.
+  const corridasExcluiveis = visiveis.filter(
+    (c) => c.status !== 'EM_ANDAMENTO',
+  );
+
   const todasSelecionadas =
-    visiveis.length > 0 && visiveis.every((c) => selecionadas.has(c.id));
+    corridasExcluiveis.length > 0 &&
+    corridasExcluiveis.every((c) => selecionadas.has(c.id));
 
   const alternarSelecao = (id: string) => {
+    const corrida = visiveis.find((c) => c.id === id);
+    if (!corrida || corrida.status === 'EM_ANDAMENTO') return;
+
     setSelecionadas((prev) => {
       const proximo = new Set(prev);
       if (proximo.has(id)) {
@@ -83,7 +93,7 @@ export function HistoricoDashboard({
     if (todasSelecionadas) {
       setSelecionadas(new Set());
     } else {
-      setSelecionadas(new Set(visiveis.map((c) => c.id)));
+      setSelecionadas(new Set(corridasExcluiveis.map((c) => c.id)));
     }
   };
 
@@ -244,7 +254,7 @@ export function HistoricoDashboard({
                     type="checkbox"
                     checked={todasSelecionadas}
                     onChange={alternarTodas}
-                    disabled={visiveis.length === 0}
+                    disabled={corridasExcluiveis.length === 0}
                     aria-label="Selecionar todas as corridas"
                     className="h-4 w-4 cursor-pointer accent-red-500 disabled:cursor-not-allowed"
                   />
@@ -281,8 +291,14 @@ export function HistoricoDashboard({
                         type="checkbox"
                         checked={marcada}
                         onChange={() => alternarSelecao(c.id)}
+                        disabled={c.status === 'EM_ANDAMENTO'}
                         aria-label={`Selecionar corrida ${c.numero}`}
-                        className="h-4 w-4 cursor-pointer accent-red-500"
+                        title={
+                          c.status === 'EM_ANDAMENTO'
+                            ? 'Corridas em andamento não podem ser excluídas'
+                            : undefined
+                        }
+                        className="h-4 w-4 cursor-pointer accent-red-500 disabled:cursor-not-allowed disabled:opacity-40"
                       />
                     </td>
                     <td className="px-4 py-2">{c.numero}</td>
