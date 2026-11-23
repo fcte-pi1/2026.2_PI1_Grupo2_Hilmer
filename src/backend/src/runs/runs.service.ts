@@ -1,4 +1,11 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Corrida, Prisma, Telemetria } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -351,6 +358,99 @@ export class RunsService implements OnModuleInit {
    */
   getActiveRunId(robotId: string = 'default'): string | undefined {
     return this.activeRuns.get(robotId);
+  }
+
+  /**
+   * Exclui várias corridas e suas telemetrias.
+   *
+   * A operação é atômica: se algum ID não existir ou alguma corrida
+   * ainda estiver EM_ANDAMENTO, nenhuma corrida será excluída.
+   *
+   * Somente corridas encerradas podem ser removidas.
+   */
+  async deleteRuns(ids: string[]): Promise<{ deletedCount: number }> {
+    if (ids.length === 0) {
+      throw new BadRequestException(
+        'A lista de IDs não pode estar vazia.',
+      );
+    }
+
+    // Remove IDs repetidos sem alterar a lista original.
+    const uniqueIds = [...new Set(ids)];
+
+    try {
+      // Aguarda inicializações já iniciadas antes da exclusão.
+      const pendingStarts = [...this.startingRuns.values()];
+      await Promise.all(
+        pendingStarts.map((promise) => promise.catch(() => null)),
+      );
+
+      const deletedCount = await this.prisma.$transaction(async (tx) => {
+        // Consulta existência e status antes de permitir a exclusão.
+        const existingRuns = await tx.corrida.findMany({
+          where: { id: { in: uniqueIds } },
+          select: {
+            id: true,
+            status: true,
+          },
+        });
+
+        if (existingRuns.length !== uniqueIds.length) {
+          throw new NotFoundException(
+            'Uma ou mais corridas não foram encontradas.',
+          );
+        }
+
+        // Não permite excluir corridas que ainda estão em execução.
+        const hasActiveRun = existingRuns.some(
+          (run) => run.status === 'EM_ANDAMENTO',
+        );
+
+        if (hasActiveRun) {
+          throw new BadRequestException(
+            'Não é possível excluir corridas que ainda estão em andamento.',
+          );
+        }
+
+        // A condição de status também é aplicada na exclusão para proteger
+        // contra uma eventual mudança de status entre a consulta e o delete.
+        const result = await tx.corrida.deleteMany({
+          where: {
+            id: { in: uniqueIds },
+            status: { not: 'EM_ANDAMENTO' },
+          },
+        });
+
+        if (result.count !== uniqueIds.length) {
+          throw new BadRequestException(
+            'Não foi possível excluir todas as corridas. Verifique se alguma corrida está em andamento.',
+          );
+        }
+
+        return result.count;
+      });
+
+      // Limpa referências em memória somente após a exclusão no banco.
+      for (const [robotId, corridaId] of this.activeRuns.entries()) {
+        if (uniqueIds.includes(corridaId)) {
+          this.activeRuns.delete(robotId);
+        }
+      }
+
+      for (const id of uniqueIds) {
+        this.finalizedRuns.delete(id);
+      }
+
+      this.logger.log(
+        `[RunsService] ${deletedCount} corrida(s) excluída(s).`,
+      );
+
+      return { deletedCount };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(`[RunsService] Falha ao excluir corridas: ${msg}`);
+      throw err;
+    }
   }
 
   /**

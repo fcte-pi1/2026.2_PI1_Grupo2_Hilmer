@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import type {
-  CorridaResumo,
-  DimensaoLabirinto,
-  RecordeLabirinto,
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import {
+  excluirCorridas,
+  type CorridaResumo,
+  type DimensaoLabirinto,
+  type RecordeLabirinto,
 } from '@/lib/corridas';
 import { formatarData, formatarTempo, formatarVelocidade } from '@/lib/format';
 import { GraficoCorridas, type PontoGrafico } from './GraficoCorridas';
+import { ModalExcluirCorridas } from './ModalExcluirCorridas';
 
 export type Filtro = 'TODOS' | DimensaoLabirinto;
 const FILTROS: Filtro[] = ['TODOS', '4x4', '8x4', '12x4'];
@@ -40,6 +44,16 @@ export function HistoricoDashboard({
   recordes = [],
   filtro = 'TODOS',
 }: HistoricoDashboardProps) {
+  const router = useRouter();
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [modalAberto, setModalAberto] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  const [erroExclusao, setErroExclusao] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelecionadas(new Set());
+  }, [filtro]);
+
   // Numera pela ordem cronológica das corridas do filtro atual.
   const visiveis = [...corridas]
     .sort((a, b) => a.iniciadaEm.localeCompare(b.iniciadaEm))
@@ -49,6 +63,72 @@ export function HistoricoDashboard({
   const comBateria = encerradas.filter(
     (c) => c.bateriaInicial !== null && c.bateriaFinal !== null,
   );
+
+  // Corridas em andamento são exibidas no histórico, mas nunca podem ser
+  // selecionadas para exclusão.
+  const corridasExcluiveis = visiveis.filter(
+    (c) => c.status !== 'EM_ANDAMENTO',
+  );
+
+  const todasSelecionadas =
+    corridasExcluiveis.length > 0 &&
+    corridasExcluiveis.every((c) => selecionadas.has(c.id));
+
+  const alternarSelecao = (id: string) => {
+    const corrida = visiveis.find((c) => c.id === id);
+    if (!corrida || corrida.status === 'EM_ANDAMENTO') return;
+
+    setSelecionadas((prev) => {
+      const proximo = new Set(prev);
+      if (proximo.has(id)) {
+        proximo.delete(id);
+      } else {
+        proximo.add(id);
+      }
+      return proximo;
+    });
+  };
+
+  const alternarTodas = () => {
+    if (todasSelecionadas) {
+      setSelecionadas(new Set());
+    } else {
+      setSelecionadas(new Set(corridasExcluiveis.map((c) => c.id)));
+    }
+  };
+
+  const abrirModalExclusao = () => {
+    if (selecionadas.size === 0) return;
+    setErroExclusao(null);
+    setModalAberto(true);
+  };
+
+  const cancelarExclusao = () => {
+    if (excluindo) return;
+    setModalAberto(false);
+    setErroExclusao(null);
+    setSelecionadas(new Set());
+  };
+
+  const confirmarExclusao = async () => {
+    setExcluindo(true);
+    setErroExclusao(null);
+
+    try {
+      await excluirCorridas(Array.from(selecionadas));
+      setSelecionadas(new Set());
+      setModalAberto(false);
+      router.refresh();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Erro inesperado ao excluir corridas.';
+      setErroExclusao(msg);
+    } finally {
+      setExcluindo(false);
+    }
+  };
 
   const pontos = (
     lista: typeof visiveis,
@@ -151,11 +231,34 @@ export function HistoricoDashboard({
       </div>
 
       <section className="rounded-xl overflow-hidden bg-[#393A99]">
-        <h2 className="bg-[#172860] px-4 py-2 text-lg">Corridas</h2>
+        <div className="flex items-center justify-between bg-[#172860] px-4 py-2">
+          <h2 className="text-lg">Corridas</h2>
+          <button
+            type="button"
+            onClick={abrirModalExclusao}
+            disabled={selecionadas.size === 0}
+            className="cursor-pointer rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {selecionadas.size > 0
+              ? `Excluir selecionadas (${selecionadas.size})`
+              : 'Excluir selecionadas'}
+          </button>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="opacity-70">
               <tr>
+                <th className="w-10 px-4 py-2">
+                  <input
+                    type="checkbox"
+                    checked={todasSelecionadas}
+                    onChange={alternarTodas}
+                    disabled={corridasExcluiveis.length === 0}
+                    aria-label="Selecionar todas as corridas"
+                    className="h-4 w-4 cursor-pointer accent-red-500 disabled:cursor-not-allowed"
+                  />
+                </th>
                 <th className="px-4 py-2">Corrida</th>
                 <th className="px-4 py-2">Data</th>
                 <th className="px-4 py-2">Labirinto</th>
@@ -168,37 +271,69 @@ export function HistoricoDashboard({
             <tbody>
               {visiveis.length === 0 && (
                 <tr className="border-t border-white/10">
-                  <td colSpan={7} className="px-4 py-6 text-center opacity-70">
+                  <td colSpan={8} className="px-4 py-6 text-center opacity-70">
                     Nenhuma corrida registrada
                     {filtro === 'TODOS' ? '' : ` para o labirinto ${filtro}`}.
                   </td>
                 </tr>
               )}
-              {[...visiveis].reverse().map((c) => (
-                <tr key={c.id} className="border-t border-white/10">
-                  <td className="px-4 py-2">{c.numero}</td>
-                  <td className="px-4 py-2">{formatarData(c.iniciadaEm)}</td>
-                  <td className="px-4 py-2">{c.labirinto}</td>
-                  <td className="px-4 py-2">{ROTULO_STATUS[c.status]}</td>
-                  <td className="px-4 py-2 text-right">
-                    {c.duracaoSegundos === null
-                      ? '—'
-                      : formatarTempo(c.duracaoSegundos)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {formatarVelocidade(c.velocidadeMedia)}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {c.bateriaInicial === null || c.bateriaFinal === null
-                      ? '—'
-                      : `${c.bateriaInicial}% → ${c.bateriaFinal}%`}
-                  </td>
-                </tr>
-              ))}
+              {[...visiveis].reverse().map((c) => {
+                const marcada = selecionadas.has(c.id);
+                return (
+                  <tr
+                    key={c.id}
+                    className={`border-t border-white/10 transition-colors ${
+                      marcada ? 'bg-red-950/30' : ''
+                    }`}
+                  >
+                    <td className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        checked={marcada}
+                        onChange={() => alternarSelecao(c.id)}
+                        disabled={c.status === 'EM_ANDAMENTO'}
+                        aria-label={`Selecionar corrida ${c.numero}`}
+                        title={
+                          c.status === 'EM_ANDAMENTO'
+                            ? 'Corridas em andamento não podem ser excluídas'
+                            : undefined
+                        }
+                        className="h-4 w-4 cursor-pointer accent-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      />
+                    </td>
+                    <td className="px-4 py-2">{c.numero}</td>
+                    <td className="px-4 py-2">{formatarData(c.iniciadaEm)}</td>
+                    <td className="px-4 py-2">{c.labirinto}</td>
+                    <td className="px-4 py-2">{ROTULO_STATUS[c.status]}</td>
+                    <td className="px-4 py-2 text-right">
+                      {c.duracaoSegundos === null
+                        ? '—'
+                        : formatarTempo(c.duracaoSegundos)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {formatarVelocidade(c.velocidadeMedia)}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {c.bateriaInicial === null || c.bateriaFinal === null
+                        ? '—'
+                        : `${c.bateriaInicial}% → ${c.bateriaFinal}%`}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </section>
+
+      <ModalExcluirCorridas
+        aberto={modalAberto}
+        quantidade={selecionadas.size}
+        carregando={excluindo}
+        erro={erroExclusao}
+        onFechar={cancelarExclusao}
+        onConfirmar={confirmarExclusao}
+      />
     </div>
   );
 }

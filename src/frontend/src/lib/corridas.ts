@@ -3,7 +3,11 @@ import { mockCorridas } from './mock-corridas';
 export const DIMENSOES_LABIRINTO = ['4x4', '8x4', '12x4'] as const;
 export type DimensaoLabirinto = (typeof DIMENSOES_LABIRINTO)[number];
 export type StatusCorrida =
-  'EM_ANDAMENTO' | 'FINALIZADA' | 'CONCLUIDA' | 'ABORTADA' | 'FALHA';
+  | 'EM_ANDAMENTO'
+  | 'FINALIZADA'
+  | 'CONCLUIDA'
+  | 'ABORTADA'
+  | 'FALHA';
 
 /**
  * Resumo de uma corrida, no formato da rota GET /runs do backend.
@@ -44,6 +48,25 @@ const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
 // true: usa os dados de mock-corridas.ts (demonstração sem backend).
 const USAR_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true';
 
+function getClientApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    // No GitHub Codespaces, converte ...-3000.app.github.dev para ...-3002.app.github.dev
+    // mesmo que NEXT_PUBLIC_API_URL tenha sido injetada como localhost no build do Docker
+    if (hostname.includes('.app.github.dev')) {
+      return `${protocol}//${hostname.replace('-3000.', '-3002.')}`;
+    }
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:3002`;
+  }
+  return 'http://localhost:3002';
+}
+
 export function ehDimensaoLabirinto(
   valor: unknown,
 ): valor is DimensaoLabirinto {
@@ -71,6 +94,40 @@ export async function getCorridas(
 export async function getRecordes(): Promise<RecordeLabirinto[]> {
   if (USAR_MOCK) return recordesDoMock();
   return buscarApi('/runs/best');
+}
+
+/** Exclui múltiplas corridas no backend (DELETE /runs). */
+export async function excluirCorridas(
+  ids: string[],
+): Promise<{ deletedCount: number }> {
+  if (USAR_MOCK) {
+    return { deletedCount: ids.length };
+  }
+
+  const res = await fetch(`${getClientApiUrl()}/runs`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ids }),
+  });
+
+  if (!res.ok) {
+    let mensagem = `Erro ao excluir corridas (HTTP ${res.status})`;
+    try {
+      const erro = await res.json();
+      if (erro?.message) {
+        mensagem = Array.isArray(erro.message)
+          ? erro.message.join(', ')
+          : erro.message;
+      }
+    } catch {
+      // Ignora erro de parse caso a resposta não seja JSON
+    }
+    throw new Error(mensagem);
+  }
+
+  return res.json();
 }
 
 function recordesDoMock(): RecordeLabirinto[] {

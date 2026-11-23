@@ -1,0 +1,38 @@
+name: Testes Backend e Frontend
+
+on:
+  push:
+    branches: [main, develop, AddExcluirCorridaNoHistorico]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Executar testes (Backend & Frontend)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          check-latest: true
+
+      - name: Verificar versão do Node
+        run: node -v
+
+      - name: Instalar dependências e testar Backend
+        working-directory: src/backend
+        run: |
+          npm ci
+          npx prisma generate
+          npm test
+
+      - name: Instalar dependências e testar Frontend
+        working-directory: src/frontend
+        run: |
+          npm ci
+          npm test
