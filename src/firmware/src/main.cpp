@@ -16,7 +16,7 @@ static const PinosMotor MOTOR_DIREITO = {Pinos::MOTOR_DIR_PWM, Pinos::MOTOR_DIR_
 
 // O sinal de cada encoder deve ser conferido na placa: robô para a frente = contagem positiva.
 static const PinosEncoder ENCODER_ESQUERDO = {Pinos::ENC_ESQ_A, Pinos::ENC_ESQ_B, false};
-static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, true};
+static const PinosEncoder ENCODER_DIREITO = {Pinos::ENC_DIR_A, Pinos::ENC_DIR_B, false};
 
 static const PinosSD PINOS_SD = {Pinos::SD_SCK, Pinos::SD_MISO, Pinos::SD_MOSI, Pinos::SD_CS};
 

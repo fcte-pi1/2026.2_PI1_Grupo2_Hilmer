@@ -34,3 +34,18 @@ bool distancia_iniciar(TwoWire &wire, const PinosDistancia &pinos);
 // Não bloqueia: atualiza só os campos dos sensores que têm medida nova, e os
 // outros ficam como estão. Cada sensor faz uma medida nova a cada ~20 ms.
 void distancia_ler(Distancias &distancias);
+
+// true se os três sensores iniciaram e todos entregaram medida nova nos últimos
+// idade_maxima_ms. Um sensor que cai do I2C no meio da corrida para de atualizar,
+// e o campo dele em Distancias fica com o último valor, que já não vale.
+bool distancia_respondendo(uint32_t idade_maxima_ms);
+
+// Quais sensores não iniciaram ou estão sem medida nova há mais de idade_maxima_ms.
+constexpr uint8_t DISTANCIA_FALHA_FRENTE = 1;
+constexpr uint8_t DISTANCIA_FALHA_ESQUERDA = 2;
+constexpr uint8_t DISTANCIA_FALHA_DIREITA = 4;
+uint8_t distancia_falhas(uint32_t idade_maxima_ms);
+
+// Nova tentativa só para os sensores em "falhas" (bits acima), sem mexer nos que estão
+// medindo. Retorna os que continuam com falha.
+uint8_t distancia_reiniciar(TwoWire &wire, const PinosDistancia &pinos, uint8_t falhas);
