@@ -46,7 +46,10 @@ public:
 
     // Eventos de estado.
     int calibracao(uint32_t t_ms, bool ok, char* saida, size_t tamanho);
-    int inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho);
+    // "labirinto": "4x4", "8x4" ou "12x4" (campo "maze"); nullptr deixa o campo de fora
+    // e o backend assume 4x4.
+    int inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho,
+               const char* labirinto = nullptr);
     int objetivo(uint32_t t_ms, int x, int y, char* saida, size_t tamanho);
     int fim(uint32_t t_ms, char* saida, size_t tamanho);
 

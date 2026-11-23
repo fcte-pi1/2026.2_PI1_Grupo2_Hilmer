@@ -58,10 +58,35 @@ namespace Pinos
     // Ler com o periférico PCNT e manter o filtro de glitch habilitado,
     // principalmente em GPIO36 e GPIO39 com o Wi-Fi ativo.
 
-    constexpr uint8_t ENC_ESQ_A = 34; // ENC_E_A (J2 C1)
-    constexpr uint8_t ENC_ESQ_B = 35; // ENC_E_B (J2 C2)
-    constexpr uint8_t ENC_DIR_A = 36; // ENC_D_A (J3 C1), VP
-    constexpr uint8_t ENC_DIR_B = 39; // ENC_D_B (J3 C2), VN
+    // No robô montado, os cabos dos encoders estão trocados de porta em relação ao
+    // esquemático: o encoder da roda esquerda está no J3 e o da direita no J2 (com o
+    // encoder esquerdo no J2 o contato falhava e ele não contava). Se os cabos voltarem
+    // para o lugar do esquemático, voltar também estes pinos: ESQ = 34/35, DIR = 36/39.
+    // Com a troca, o encoder direito conta para a frente sem inverter (campo "invertido"
+    // false nos PinosEncoder); com os cabos no lugar do esquemático, ele era true.
+    constexpr uint8_t ENC_ESQ_A = 36; // J3 C1, VP (esquemático: ENC_D_A)
+    constexpr uint8_t ENC_ESQ_B = 39; // J3 C2, VN (esquemático: ENC_D_B)
+    constexpr uint8_t ENC_DIR_A = 34; // J2 C1 (esquemático: ENC_E_A)
+    constexpr uint8_t ENC_DIR_B = 35; // J2 C2 (esquemático: ENC_E_B)
+
+    // Sentido de cada motor e encoder (campo "invertido" de PinosMotor e PinosEncoder),
+    // num lugar só para todos os exemplos e o firmware. Conferir com o robô suspenso no
+    // exemplo_queda_sensores: motores para a frente = as duas contagens positivas.
+    //   - Motor esquerdo: true (como no esquemático original). Conferido na fiação
+    //     refeita acionando só o canal A: a roda esquerda andou para a frente.
+    //   - Motor direito: os fios do motor ficaram trocados nos bornes (OUT3/OUT4) na
+    //     fiação refeita; era false.
+    //   - Encoder esquerdo: C1 e C2 ficaram trocados na fiação refeita (uma volta da roda
+    //     para a frente contava -576); era false.
+    constexpr bool MOTOR_ESQ_INVERTIDO = true;
+    constexpr bool MOTOR_DIR_INVERTIDO = true;
+    constexpr bool ENC_ESQ_INVERTIDO = true;
+    constexpr bool ENC_DIR_INVERTIDO = false;
+    // Giroscópio (MPU6050): true quando, girando o robô para a esquerda, o giro_z bruto
+    // dá negativo (o explorar quer positivo para a esquerda). O módulo está montado com
+    // o componente para baixo. Conferir com o comando "g" do exemplo_explorar (robô no
+    // chão): ele gira para a esquerda pelos motores e diz se o ângulo subiu.
+    constexpr bool IMU_INVERTIDA = true;
 
     // Interface com o usuário
 

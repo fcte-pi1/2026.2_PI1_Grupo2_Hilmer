@@ -37,6 +37,10 @@ static void ao_receber_evento(WStype_t tipo, uint8_t *, size_t) {
 
 void comunicacao_iniciar() {
     WiFi.mode(WIFI_STA);
+    // Potência de transmissão reduzida (o padrão é ~19,5 dBm). Na bateria, os picos de
+    // corrente do rádio derrubavam a tensão e o ESP32 reiniciava por brownout logo ao
+    // conectar. 8,5 dBm ainda alcança o roteador ou o celular a alguns metros.
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
     // O ESP32 volta a conectar sozinho no Wi-Fi depois de uma queda.
     WiFi.setAutoReconnect(true);
     WiFi.begin(Credenciais::WIFI_SSID, Credenciais::WIFI_SENHA);
