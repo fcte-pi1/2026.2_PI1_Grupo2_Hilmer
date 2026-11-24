@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { Battery } from '@/components/Battery';
-import { BatteryLevel } from '@/components/BatteryLevel';
+import { BatteryLevel, getBatteryColor } from '@/components/BatteryLevel';
 import { ChallengeFlag } from '@/components/ChallengeFlag';
 import { Connection } from '@/components/Connection';
 import { MazeType } from '@/components/MazeType';
@@ -22,11 +22,32 @@ describe('Speed (velocímetro)', () => {
 
 describe('BatteryLevel', () => {
   it.each([0, 5, 67, 100])('exibe %s%% e a barra proporcional', (nivel) => {
-    const { container } = render(<BatteryLevel level={nivel} />);
+    render(<BatteryLevel level={nivel} />);
     expect(screen.getByText(`${nivel}%`)).toBeInTheDocument();
-    expect(container.querySelector('.bg-green-400')).toHaveStyle({
+    const barra = screen.getByTestId('battery-level-bar');
+    expect(barra).toHaveStyle({
       width: `${nivel}%`,
     });
+  });
+
+  it('aplica a cor correta de acordo com o nível da bateria', () => {
+    const { rerender } = render(<BatteryLevel level={80} />);
+    expect(screen.getByTestId('battery-level-bar')).toHaveClass('bg-green-400');
+
+    rerender(<BatteryLevel level={45} />);
+    expect(screen.getByTestId('battery-level-bar')).toHaveClass('bg-yellow-400');
+
+    rerender(<BatteryLevel level={15} />);
+    expect(screen.getByTestId('battery-level-bar')).toHaveClass('bg-red-500');
+  });
+
+  it('avalia as faixas de cor na função getBatteryColor', () => {
+    expect(getBatteryColor(100)).toBe('bg-green-400');
+    expect(getBatteryColor(51)).toBe('bg-green-400');
+    expect(getBatteryColor(50)).toBe('bg-yellow-400');
+    expect(getBatteryColor(21)).toBe('bg-yellow-400');
+    expect(getBatteryColor(20)).toBe('bg-red-500');
+    expect(getBatteryColor(0)).toBe('bg-red-500');
   });
 });
 
