@@ -83,7 +83,7 @@ Este é o elemento central da arquitetura. O mock, o firmware e o backend precis
 
 ```json
 { "v": 1, "type": "event", "robot_id": "mm-01", "seq": 0,    "t_ms": 0,      "event": "CALIBRATION_DONE", "ok": true }
-{ "v": 1, "type": "event", "robot_id": "mm-01", "seq": 1,    "t_ms": 0,      "event": "RUN_START", "battery_pct": 98.0 }
+{ "v": 1, "type": "event", "robot_id": "mm-01", "seq": 1,    "t_ms": 0,      "event": "RUN_START", "battery_pct": 98.0, "maze": "8x4" }
 { "v": 1, "type": "event", "robot_id": "mm-01", "seq": 1843, "t_ms": 184250, "event": "GOAL_REACHED", "pos": { "x": 3, "y": 3 } }
 { "v": 1, "type": "event", "robot_id": "mm-01", "seq": 1900, "t_ms": 190000, "event": "RUN_END" }
 ```
@@ -91,11 +91,11 @@ Este é o elemento central da arquitetura. O mock, o firmware e o backend precis
 | Evento             | Requisito | Significado                                                                                                          |
 | ------------------ | --------- | -------------------------------------------------------------------------------------------------------------------- |
 | `CALIBRATION_DONE` | RF12      | O robô terminou a calibração automática dos sensores. `ok` indica se ela teve sucesso.                               |
-| `RUN_START`        | RF11      | Início da corrida; informa a bateria inicial.                                                                        |
+| `RUN_START`        | RF11      | Início da corrida; informa a bateria inicial e opcionalmente o tamanho do labirinto (`"4x4"`, `"8x4"` ou `"12x4"`). |
 | `GOAL_REACHED`     | RF10      | O robô identificou sozinho a célula objetivo. Esse evento marca o desafio como cumprido e fixa o tempo de conclusão. |
 | `RUN_END`          | RF11      | Fim da transmissão da corrida, que pode incluir o retorno à origem.                                                  |
 
-**Associação com o labirinto:** antes da corrida, o operador seleciona no dashboard qual labirinto será usado (4×4, 8×4 ou 12×4). Quando chega o evento `RUN_START`, o backend abre uma corrida vinculada a esse labirinto. Isso não conta como intervenção humana durante a execução, porque a seleção acontece antes do início.
+**Associação com o labirinto:** o robô pode informar dinamicamente a dimensão do labirinto (`"4x4"`, `"8x4"` ou `"12x4"`) no evento `RUN_START` ou nas mensagens de telemetria. Caso omitido pelo robô, o sistema utiliza o labirinto previamente selecionado no dashboard pelo operador ou o padrão 4×4. Isso garante total flexibilidade entre os diferentes circuitos da competição sem necessidade de intervenção durante a prova.
 
 ### 2.3 Métricas derivadas (RF13)
 

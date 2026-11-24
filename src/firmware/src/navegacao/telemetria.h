@@ -30,6 +30,7 @@ struct DadosTelemetria {
     float bateria_pct;
     uint8_t paredes;        // paredes da célula atual, bits de Direcao
     EstadoRobo estado;
+    const char* maze;       // opcional: dimensão do labirinto ("4x4", "8x4", "12x4")
 };
 
 // Monta o texto JSON de cada mensagem e numera as mensagens com o "seq".
@@ -47,6 +48,7 @@ public:
     // Eventos de estado.
     int calibracao(uint32_t t_ms, bool ok, char* saida, size_t tamanho);
     int inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho);
+    int inicio(uint32_t t_ms, float bateria_pct, const char* maze, char* saida, size_t tamanho);
     int objetivo(uint32_t t_ms, int x, int y, char* saida, size_t tamanho);
     int fim(uint32_t t_ms, char* saida, size_t tamanho);
 

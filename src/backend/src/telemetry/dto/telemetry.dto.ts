@@ -112,6 +112,10 @@ export class TelemetryPayloadDto extends BaseMessageDto {
   state: RobotState;
 
   @IsOptional()
+  @IsIn(['4x4', '8x4', '12x4'])
+  maze?: '4x4' | '8x4' | '12x4';
+
+  @IsOptional()
   sensores?: any;
 }
 

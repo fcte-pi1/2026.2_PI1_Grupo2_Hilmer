@@ -25,6 +25,8 @@ constexpr uint32_t PILHA_TAREFA = 4096;  // bytes
 constexpr uint32_t PILHA_COMUNICACAO = 8192;  // bytes
 
 constexpr const char *ROBOT_ID = "mm-01";
+// Dimensão do labirinto da prova ("4x4", "8x4" ou "12x4")
+constexpr const char *LABIRINTO_DIMENSAO = "4x4";
 
 // Mostra no monitor serial, a cada INTERVALO_TEMPOS_MS, o período real e o tempo de
 // execução de cada tarefa (teste 3.12 do doc 7.3). Desligar na competição.
@@ -153,6 +155,7 @@ static void tarefa_comunicacao(void *) {
             dados.direcao = NORTE;
             dados.estado = ROBO_PARADO;
             dados.bateria_pct = bateria_carga(leitura.tensao_bateria);
+            dados.maze = LABIRINTO_DIMENSAO;
 
             int tamanho = telemetria.pacote(millis(), dados, texto, sizeof(texto));
             if (tamanho > 0) {

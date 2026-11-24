@@ -311,6 +311,7 @@ export class RunsService implements OnModuleInit {
         );
         const autoRun = await this.startRun({
           robotId: robotKey,
+          dimensaoLabirinto: options.payload.maze,
           iniciadaEm: options.recebidoEm,
         });
         if (!autoRun) return null;

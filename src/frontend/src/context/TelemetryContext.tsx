@@ -21,6 +21,7 @@ export interface LiveTelemetryPayload {
   battery_pct: number;
   walls?: CellWalls;
   state: string;
+  maze?: MazeDimension;
 }
 
 /** Sem mensagem do robô por mais que isso, o cabeçalho mostra "Desconectado" (mesmo limite do watchdog do backend). */
@@ -166,6 +167,11 @@ export function TelemetryProvider({ children }: { children: React.ReactNode }) {
             markRobotAlive();
             const telemetry: LiveTelemetryPayload = msg.data;
             setIsLiveActive(true);
+
+            // Atualiza o labirinto se informado pelo pacote de telemetria
+            if (telemetry.maze && MAZE_DIMENSIONS.includes(telemetry.maze)) {
+              setLiveMaze(telemetry.maze);
+            }
 
             // Atualiza bateria do robô e cabeçalho
             if (typeof telemetry.battery_pct === 'number') {
