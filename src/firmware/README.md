@@ -88,9 +88,9 @@ O módulo `navegacao/telemetria.*` monta o texto JSON que o robô envia ao siste
 
 | Função       | Mensagem                          | Quando enviar                       |
 | ------------ | --------------------------------- | ----------------------------------- |
-| `pacote`     | `telemetry`                       | a cada 100 ms (10 Hz) durante a corrida |
+| `pacote`     | `telemetry`                       | a cada 100 ms (10 Hz) durante a corrida (aceita `maze` opcional) |
 | `calibracao` | evento `CALIBRATION_DONE` (`ok`)  | ao terminar a calibração dos sensores |
-| `inicio`     | evento `RUN_START` (`battery_pct`) | no início da corrida               |
+| `inicio`     | evento `RUN_START` (`battery_pct`, `maze`) | no início da corrida (informa o labirinto: `"4x4"`, `"8x4"` ou `"12x4"`) |
 | `objetivo`   | evento `GOAL_REACHED` (`pos`)     | ao chegar na célula objetivo        |
 | `fim`        | evento `RUN_END`                  | no fim da corrida                   |
 
@@ -99,8 +99,9 @@ A classe `Telemetria` guarda o `seq`, que cresce a cada mensagem, inclusive nos 
 ```cpp
 Telemetria telemetria("mm-01");
 char texto[TELEMETRIA_TAMANHO_MAX];
-int tamanho = telemetria.inicio(0, 98.0f, texto, sizeof(texto));
-// texto: {"v":1,"type":"event","robot_id":"mm-01","seq":0,"t_ms":0,"event":"RUN_START","battery_pct":98.0}
+// Informando o tamanho do labirinto no início da corrida:
+int tamanho = telemetria.inicio(0, 98.0f, "8x4", texto, sizeof(texto));
+// texto: {"v":1,"type":"event","robot_id":"mm-01","seq":0,"t_ms":0,"event":"RUN_START","battery_pct":98.0,"maze":"8x4"}
 ```
 
 ## Comunicação (Wi-Fi e WebSocket)

@@ -47,7 +47,19 @@ int Telemetria::montar(const char* tipo, uint32_t t_ms, const char* campos, char
 
 int Telemetria::pacote(uint32_t t_ms, const DadosTelemetria& dados, char* saida, size_t tamanho) {
     char campos[TELEMETRIA_TAMANHO_MAX];
-    int escritos = snprintf(campos, sizeof(campos),
+    int escritos;
+    if (dados.maze != nullptr && dados.maze[0] != '\0') {
+        escritos = snprintf(campos, sizeof(campos),
+                            "\"pos\":{\"x\":%d,\"y\":%d},\"heading\":\"%s\",\"speed_mm_s\":%.1f,"
+                            "\"odo_mm\":%ld,\"battery_pct\":%.1f,"
+                            "\"walls\":{\"n\":%s,\"e\":%s,\"s\":%s,\"w\":%s},\"state\":\"%s\",\"maze\":\"%s\"",
+                            dados.x, dados.y, texto_direcao(dados.direcao), dados.velocidade_mm_s,
+                            (long)dados.odometria_mm, dados.bateria_pct,
+                            texto_bool(dados.paredes & NORTE), texto_bool(dados.paredes & LESTE),
+                            texto_bool(dados.paredes & SUL), texto_bool(dados.paredes & OESTE),
+                            texto_estado(dados.estado), dados.maze);
+    } else {
+        escritos = snprintf(campos, sizeof(campos),
                             "\"pos\":{\"x\":%d,\"y\":%d},\"heading\":\"%s\",\"speed_mm_s\":%.1f,"
                             "\"odo_mm\":%ld,\"battery_pct\":%.1f,"
                             "\"walls\":{\"n\":%s,\"e\":%s,\"s\":%s,\"w\":%s},\"state\":\"%s\"",
@@ -56,6 +68,7 @@ int Telemetria::pacote(uint32_t t_ms, const DadosTelemetria& dados, char* saida,
                             texto_bool(dados.paredes & NORTE), texto_bool(dados.paredes & LESTE),
                             texto_bool(dados.paredes & SUL), texto_bool(dados.paredes & OESTE),
                             texto_estado(dados.estado));
+    }
     if (!coube(escritos, sizeof(campos))) {
         return 0;
     }
@@ -68,10 +81,18 @@ int Telemetria::calibracao(uint32_t t_ms, bool ok, char* saida, size_t tamanho) 
     return montar("event", t_ms, campos, saida, tamanho);
 }
 
-int Telemetria::inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho) {
-    char campos[64];
-    snprintf(campos, sizeof(campos), "\"event\":\"RUN_START\",\"battery_pct\":%.1f", bateria_pct);
+int Telemetria::inicio(uint32_t t_ms, float bateria_pct, const char* maze, char* saida, size_t tamanho) {
+    char campos[96];
+    if (maze != nullptr && maze[0] != '\0') {
+        snprintf(campos, sizeof(campos), "\"event\":\"RUN_START\",\"battery_pct\":%.1f,\"maze\":\"%s\"", bateria_pct, maze);
+    } else {
+        snprintf(campos, sizeof(campos), "\"event\":\"RUN_START\",\"battery_pct\":%.1f", bateria_pct);
+    }
     return montar("event", t_ms, campos, saida, tamanho);
+}
+
+int Telemetria::inicio(uint32_t t_ms, float bateria_pct, char* saida, size_t tamanho) {
+    return inicio(t_ms, bateria_pct, nullptr, saida, tamanho);
 }
 
 int Telemetria::objetivo(uint32_t t_ms, int x, int y, char* saida, size_t tamanho) {

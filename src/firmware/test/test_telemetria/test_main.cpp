@@ -65,6 +65,23 @@ void test_evento_de_inicio_segue_o_exemplo_do_contrato() {
         saida);
 }
 
+void test_evento_de_inicio_com_tamanho_do_labirinto() {
+    Telemetria telemetria("mm-01", 1);
+    telemetria.inicio(0, 98.0f, "8x4", saida, sizeof(saida));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"v\":1,\"type\":\"event\",\"robot_id\":\"mm-01\",\"seq\":1,\"t_ms\":0,"
+        "\"event\":\"RUN_START\",\"battery_pct\":98.0,\"maze\":\"8x4\"}",
+        saida);
+}
+
+void test_pacote_de_telemetria_com_tamanho_do_labirinto() {
+    Telemetria telemetria("mm-01", 10);
+    DadosTelemetria dados = dados_do_exemplo();
+    dados.maze = "12x4";
+    telemetria.pacote(1000, dados, saida, sizeof(saida));
+    TEST_ASSERT_NOT_NULL(strstr(saida, "\"maze\":\"12x4\""));
+}
+
 void test_evento_de_objetivo_segue_o_exemplo_do_contrato() {
     Telemetria telemetria("mm-01", 1843);
     telemetria.objetivo(184250, 3, 3, saida, sizeof(saida));
@@ -111,6 +128,8 @@ int main() {
     RUN_TEST(test_pacote_traduz_direcao_e_estado_para_o_contrato);
     RUN_TEST(test_evento_de_calibracao_segue_o_exemplo_do_contrato);
     RUN_TEST(test_evento_de_inicio_segue_o_exemplo_do_contrato);
+    RUN_TEST(test_evento_de_inicio_com_tamanho_do_labirinto);
+    RUN_TEST(test_pacote_de_telemetria_com_tamanho_do_labirinto);
     RUN_TEST(test_evento_de_objetivo_segue_o_exemplo_do_contrato);
     RUN_TEST(test_evento_de_fim_segue_o_exemplo_do_contrato);
     RUN_TEST(test_seq_cresce_a_cada_mensagem_incluindo_eventos);

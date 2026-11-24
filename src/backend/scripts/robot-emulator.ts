@@ -465,6 +465,7 @@ function simulateSingleRun(): Promise<void> {
           battery_pct: battery,
           state,
           walls: cell.walls,
+          maze: config.maze,
         };
 
         ws.send(JSON.stringify(telemetryPayload));
